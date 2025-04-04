@@ -3,4 +3,15 @@ name = "mimir"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["mimir-macros"]
+
 [dependencies]
+mimir-macros = { path = "mimir-macros" }
+lalrpop-util = { version = "0.22.1", features = ["lexer", "unicode"] }
+thiserror = "2.0.12"
+rustyline = "15.0.0"
+termion = "4.0.5"
+
+[build-dependencies]
+lalrpop = "0.22.1"

@@ -207,6 +207,10 @@ pub enum Expr {
         op: UnaryOpCode,
         expr: Box<Expr>,
     },
+    Call {
+        name: String,
+        args: Vec<Box<Expr>>,
+    },
     Error,
 }
 
@@ -250,6 +254,7 @@ impl Expr {
         match self {
             Expr::BinaryOp { left, op: _, right } => vec![*left.clone(), *right.clone()],
             Expr::UnaryOp { op: _, expr } => vec![*expr.clone()],
+            Expr::Call { name: _, args } => args.iter().map(|e| *e.clone()).collect(),
             _ => vec![],
         }
     }
@@ -288,6 +293,7 @@ impl fmt::Display for Expr {
             Expr::UnaryOp { op, .. } => match op {
                 UnaryOpCode::Neg => write!(f, "{}Neg", color::Fg(color::Cyan))?,
             },
+            Expr::Call { name, .. } => write!(f, "{}{}", color::Fg(color::Blue), name)?,
         };
 
         write!(f, "{}", color::Fg(color::Reset))?;

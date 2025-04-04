@@ -12,6 +12,7 @@ pub Expr: Box<Expr> = {
 
 pub Term: Box<Expr> = {
     <left:Term> <op:TermOp> <right:Factor> => Box::new(Expr::BinaryOp {<>}),
+    <left:Term> <right:Atom> => Box::new(Expr::BinaryOp { op: BinaryOpCode::Mul, left, right }),
     Factor,
 };
 

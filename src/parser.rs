@@ -7,11 +7,11 @@ pub enum ParseError {
     InvalidToken {
         location: usize,
     },
-    UnrecognizedEof {
+    UnexpectedEof {
         location: usize,
         expected: Vec<String>,
     },
-    UnrecognizedToken {
+    UnexpectedToken {
         start: usize,
         token: String,
         end: usize,
@@ -33,12 +33,12 @@ impl From<lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>>
         match value {
             lalrpop_util::ParseError::InvalidToken { location } => Self::InvalidToken { location },
             lalrpop_util::ParseError::UnrecognizedEof { location, expected } => {
-                Self::UnrecognizedEof { location, expected }
+                Self::UnexpectedEof { location, expected }
             },
             lalrpop_util::ParseError::UnrecognizedToken {
                 token: (start, token, end),
                 expected,
-            } => Self::UnrecognizedToken {
+            } => Self::UnexpectedToken {
                 start,
                 token: token.to_string(),
                 end,
@@ -60,41 +60,62 @@ impl From<lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>>
 
 impl ParseError {
     pub fn fmt(&self, src: &str) {
-        print!(
-            "\n{}{}error{}: ",
-            color::Fg(color::Red),
-            style::Bold,
-            color::Fg(color::Reset)
-        );
+        match self {
+            ParseError::Multiple(_) => (),
+            _ => {
+                print!(
+                    "\n{}{}error{}: ",
+                    color::Fg(color::Red),
+                    style::Bold,
+                    color::Fg(color::Reset)
+                );
+            },
+        }
 
         match self {
             ParseError::InvalidToken { location } => {
                 print!("invalid token");
                 self.fmt_details("", *location, *location + 1, src);
             },
-            ParseError::UnrecognizedEof { location, expected } => {
-                print!("unrecognized eof");
-                let mut details = String::from("expected ");
-                for s in expected {
-                    details.push_str(&format!("'{}'", s));
-                }
+            ParseError::UnexpectedEof { location, expected } => {
+                print!("unexpected eof");
+
+                let details = if expected.is_empty() {
+                    String::new()
+                } else {
+                    let mut details = String::from("expected ");
+                    for s in expected.iter().take(expected.len() - 1) {
+                        details.push_str(&format!("{}, ", s));
+                    }
+                    details.push_str(&format!("or {}", expected.last().unwrap()));
+                    details
+                };
+
                 self.fmt_details(&details, *location, *location + 1, src);
             },
-            ParseError::UnrecognizedToken {
+            ParseError::UnexpectedToken {
                 start,
                 token,
                 end,
                 expected,
             } => {
-                print!("unrecognized token '{}'", token);
-                let mut details = String::from("expected ");
-                for s in expected {
-                    details.push_str(&format!("'{}'", s));
-                }
+                print!("unexpected token {}", token);
+
+                let details = if expected.is_empty() {
+                    String::new()
+                } else {
+                    let mut details = String::from("expected ");
+                    for s in expected.iter().take(expected.len() - 1) {
+                        details.push_str(&format!("{}, ", s));
+                    }
+                    details.push_str(&format!("or {}", expected.last().unwrap()));
+                    details
+                };
+
                 self.fmt_details(&details, *start, *end, src);
             },
             ParseError::ExtraToken { start, token, end } => {
-                print!("extra token '{}'", token);
+                print!("extra token {}", token);
                 self.fmt_details("", *start, *end, src);
             },
             ParseError::User { error } => {

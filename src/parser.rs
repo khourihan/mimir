@@ -179,18 +179,28 @@ pub enum Expr {
     Ident(String),
     BinaryOp {
         left: Box<Expr>,
-        op: OpCode,
+        op: BinaryOpCode,
         right: Box<Expr>,
+    },
+    UnaryOp {
+        op: UnaryOpCode,
+        expr: Box<Expr>,
     },
     Error,
 }
 
 #[derive(Clone, Debug)]
-pub enum OpCode {
+pub enum BinaryOpCode {
     Add,
     Sub,
     Mul,
     Div,
+    Pow,
+}
+
+#[derive(Clone, Debug)]
+pub enum UnaryOpCode {
+    Neg,
 }
 
 impl FromStr for Ast {
@@ -218,6 +228,7 @@ impl Expr {
     pub fn leaves(&self) -> Vec<Expr> {
         match self {
             Expr::BinaryOp { left, op: _, right } => vec![*left.clone(), *right.clone()],
+            Expr::UnaryOp { op: _, expr } => vec![*expr.clone()],
             _ => vec![],
         }
     }
@@ -247,10 +258,14 @@ impl fmt::Display for Expr {
             Expr::Ident(v) => write!(f, "{}{:?}", color::Fg(color::White), v)?,
             Expr::Error => write!(f, "{}error", color::Fg(color::Yellow))?,
             Expr::BinaryOp { op, .. } => match op {
-                OpCode::Add => write!(f, "{}+", color::Fg(color::Cyan))?,
-                OpCode::Sub => write!(f, "{}-", color::Fg(color::Cyan))?,
-                OpCode::Mul => write!(f, "{}*", color::Fg(color::Cyan))?,
-                OpCode::Div => write!(f, "{}/", color::Fg(color::Cyan))?,
+                BinaryOpCode::Add => write!(f, "{}Add", color::Fg(color::Cyan))?,
+                BinaryOpCode::Sub => write!(f, "{}Sub", color::Fg(color::Cyan))?,
+                BinaryOpCode::Mul => write!(f, "{}Mul", color::Fg(color::Cyan))?,
+                BinaryOpCode::Div => write!(f, "{}Div", color::Fg(color::Cyan))?,
+                BinaryOpCode::Pow => write!(f, "{}Pow", color::Fg(color::Cyan))?,
+            },
+            Expr::UnaryOp { op, .. } => match op {
+                UnaryOpCode::Neg => write!(f, "{}Neg", color::Fg(color::Cyan))?,
             },
         };
 

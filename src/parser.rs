@@ -216,11 +216,26 @@ pub enum Expr {
 
 #[derive(Clone, Debug)]
 pub enum BinaryOpCode {
+    /// Addition
     Add,
+    /// Subtraction
     Sub,
+    /// Multiplication
     Mul,
+    /// Division
     Div,
+    /// Exponentiation
     Pow,
+    /// Equals
+    Eq,
+    /// Less than
+    Lt,
+    /// Greater than
+    Gt,
+    /// Less than equals
+    Lte,
+    /// Greater than equals
+    Gte,
 }
 
 #[derive(Clone, Debug)]
@@ -234,8 +249,8 @@ impl FromStr for Ast {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut errors = Vec::new();
 
-        let expr = match crate::grammar::ExprParser::new().parse(&mut errors, s) {
-            Ok(expr) => expr,
+        let stmt = match crate::grammar::StatementParser::new().parse(&mut errors, s) {
+            Ok(stmt) => stmt,
             Err(err) => return Err(err.into()),
         };
 
@@ -245,7 +260,7 @@ impl FromStr for Ast {
             ));
         }
 
-        Ok(Ast(*expr))
+        Ok(Ast(*stmt))
     }
 }
 
@@ -289,6 +304,11 @@ impl fmt::Display for Expr {
                 BinaryOpCode::Mul => write!(f, "{}Mul", color::Fg(color::Cyan))?,
                 BinaryOpCode::Div => write!(f, "{}Div", color::Fg(color::Cyan))?,
                 BinaryOpCode::Pow => write!(f, "{}Pow", color::Fg(color::Cyan))?,
+                BinaryOpCode::Eq => write!(f, "{}Eq", color::Fg(color::Cyan))?,
+                BinaryOpCode::Lt => write!(f, "{}Lt", color::Fg(color::Cyan))?,
+                BinaryOpCode::Gt => write!(f, "{}Gt", color::Fg(color::Cyan))?,
+                BinaryOpCode::Lte => write!(f, "{}Lte", color::Fg(color::Cyan))?,
+                BinaryOpCode::Gte => write!(f, "{}Gte", color::Fg(color::Cyan))?,
             },
             Expr::UnaryOp { op, .. } => match op {
                 UnaryOpCode::Neg => write!(f, "{}Neg", color::Fg(color::Cyan))?,

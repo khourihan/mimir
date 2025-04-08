@@ -4,10 +4,19 @@ use lalrpop_util::ErrorRecovery;
 
 grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
 
+pub Statement: Box<Expr> = {
+    CompExpr,
+    ! => { errors.push(<>); Box::new(Expr::Error) }
+};
+
+pub CompExpr: Box<Expr> = {
+    <left:Expr> <op:CompExprOp> <right:Expr> => Box::new(Expr::BinaryOp {<>}),
+    Expr,
+};
+
 pub Expr: Box<Expr> = {
     <left:Expr> <op:ExprOp> <right:Term> => Box::new(Expr::BinaryOp {<>}),
     Term,
-    ! => { errors.push(<>); Box::new(Expr::Error) }
 };
 
 pub Term: Box<Expr> = {
@@ -33,6 +42,14 @@ pub Atom: Box<Expr> = {
     Ident => Box::new(Expr::Ident(<>)),
     "(" <Expr> ")",
     <name:Ident> "[" <args:Comma<Expr>> "]" => Box::new(Expr::Call {<>}),
+};
+
+CompExprOp: BinaryOpCode = {
+    "==" => BinaryOpCode::Eq,
+    "<" => BinaryOpCode::Lt,
+    ">" => BinaryOpCode::Gt,
+    "<=" => BinaryOpCode::Lte,
+    ">=" => BinaryOpCode::Gte,
 };
 
 ExprOp: BinaryOpCode = {

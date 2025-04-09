@@ -1,6 +1,6 @@
 use lalrpop_util::lalrpop_mod;
 use mimir_macros::{IterEnum, StringifyEnum};
-use parser::Ast;
+use parser::{Ast, ParseError};
 use rustyline::{Config, EditMode, Editor, error::ReadlineError, history::DefaultHistory};
 use termion::{color, cursor, style};
 
@@ -46,7 +46,7 @@ fn main() {
 
     loop {
         match stdin.readline(&format!("[{}] >> ", line)) {
-            Ok(input) => {
+            Ok(mut input) => {
                 RunMethod::iter_fields().enumerate().for_each(|(i, x)| {
                     println!(
                         "{}{}[{}] {}{}{}",
@@ -60,6 +60,14 @@ fn main() {
                 });
 
                 let Ok(opts) = select_method(&mut stdin, 0) else { break };
+
+                if let Err(err) = input.parse::<Ast>() {
+                    if let ParseError::UnexpectedEof { .. } = err {
+                        input.insert(0, '\n');
+                        err.fmt(&input, line - 1);
+                        continue;
+                    };
+                };
 
                 let mut src_new = src.clone();
                 if line != 1 {
@@ -78,7 +86,7 @@ fn main() {
                         ast
                     },
                     Err(err) => {
-                        err.fmt(&src_new);
+                        err.fmt(&src_new, 0);
                         continue;
                     },
                 };

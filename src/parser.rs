@@ -61,7 +61,7 @@ impl From<lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>>
 }
 
 impl ParseError {
-    pub fn fmt(&self, src: &str) {
+    pub fn fmt(&self, src: &str, line: usize) {
         match self {
             ParseError::Multiple(_) => (),
             _ => {
@@ -77,7 +77,7 @@ impl ParseError {
         match self {
             ParseError::InvalidToken { location } => {
                 print!("invalid token");
-                self.fmt_details("", *location, *location + 1, src);
+                self.fmt_details("", *location - 1, *location, src, line);
             },
             ParseError::UnexpectedEof { location, expected } => {
                 print!("unexpected eof");
@@ -93,7 +93,7 @@ impl ParseError {
                     details
                 };
 
-                self.fmt_details(&details, *location, *location + 1, src);
+                self.fmt_details(&details, *location - 1, *location, src, line);
             },
             ParseError::UnexpectedToken {
                 start,
@@ -114,28 +114,28 @@ impl ParseError {
                     details
                 };
 
-                self.fmt_details(&details, *start, *end, src);
+                self.fmt_details(&details, *start, *end, src, line);
             },
             ParseError::ExtraToken { start, token, end } => {
                 print!("extra token {}", token);
-                self.fmt_details("", *start, *end, src);
+                self.fmt_details("", *start, *end, src, line);
             },
             ParseError::User { error } => {
                 print!("{}", error);
             },
             ParseError::Multiple(errors) => {
                 for err in errors {
-                    err.fmt(src);
+                    err.fmt(src, line);
                 }
             },
         }
     }
 
-    pub fn fmt_details(&self, details: &str, start: usize, end: usize, src: &str) {
-        let start_line = src[0..start].chars().filter(|c| *c == '\n').count();
+    pub fn fmt_details(&self, details: &str, start: usize, end: usize, src: &str, line: usize) {
+        let start_line = src[0..=start].chars().filter(|c| *c == '\n').count();
 
         let start_col = 1 + start
-            - src[0..start]
+            - src[0..=start]
                 .chars()
                 .enumerate()
                 .filter(|(_, c)| *c == '\n')
@@ -143,7 +143,7 @@ impl ParseError {
                 .unwrap()
                 .0;
         let end_col = 1 + end
-            - src[0..end]
+            - src[0..=end]
                 .chars()
                 .enumerate()
                 .filter(|(_, c)| *c == '\n')
@@ -156,9 +156,9 @@ impl ParseError {
             color::Fg(color::Blue),
             style::Bold,
             style::Reset,
-            start_line,
+            start_line + line,
             start_col,
-            String::from(" ").repeat(start_line.ilog10() as usize + 1),
+            String::from(" ").repeat((start_line + line).ilog10() as usize + 1),
             color::Fg(color::Blue),
             style::Bold
         );
@@ -167,7 +167,7 @@ impl ParseError {
             "{}{}{} | {}{}{}",
             color::Fg(color::Blue),
             style::Bold,
-            start_line,
+            start_line + line,
             color::Fg(color::Reset),
             style::Reset,
             src.split('\n').nth(start_line).unwrap(),
@@ -175,7 +175,7 @@ impl ParseError {
 
         print!(
             "{}{}{} | {}{}{} {}{}{}\n\n",
-            String::from(" ").repeat(start_line.ilog10() as usize + 1),
+            String::from(" ").repeat((start_line + line).ilog10() as usize + 1),
             color::Fg(color::Blue),
             style::Bold,
             String::from(" ").repeat(start_col - 1),

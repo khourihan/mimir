@@ -27,7 +27,7 @@ pub enum Expr {
     },
     Block {
         stmts: Vec<Box<Statement>>,
-        expr: Box<Expr>,
+        expr: Option<Box<Expr>>,
     },
     Error,
 }
@@ -104,7 +104,11 @@ impl DisplayLeaves for Expr {
             Expr::Block { stmts, expr } => stmts
                 .iter()
                 .map(|e| -> Box<dyn DisplayLeaves> { e.clone() })
-                .chain(std::iter::once(expr).map(|e| -> Box<dyn DisplayLeaves> { e.clone() }))
+                .chain(
+                    std::iter::once(expr)
+                        .flatten()
+                        .map(|e| -> Box<dyn DisplayLeaves> { e.clone() }),
+                )
                 .collect::<Vec<Box<dyn DisplayLeaves>>>(),
             _ => vec![],
         }

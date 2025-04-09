@@ -12,7 +12,7 @@ pub Statement: Box<Statement> = {
 };
 
 pub Expr: Box<Expr> = {
-    "{" <mut stmts:(<Statement> ";")*> <expr:Expr> "}" => Box::new(Expr::Block {<>}),
+    "{" <mut stmts:(<Statement> ";")*> <expr:Expr?> "}" => Box::new(Expr::Block {<>}),
     CompExpr,
 };
 

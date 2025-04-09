@@ -1,4 +1,6 @@
-use std::{collections::VecDeque, fmt, str::FromStr};
+use std::str::FromStr;
+
+use crate::expr::Expr;
 
 use termion::{color, style};
 
@@ -131,7 +133,6 @@ impl ParseError {
 
     pub fn fmt_details(&self, details: &str, start: usize, end: usize, src: &str) {
         let start_line = src[0..start].chars().filter(|c| *c == '\n').count();
-        // let end_line = src[0..end].chars().filter(|c| *c == '\n').count();
 
         let start_col = 1 + start
             - src[0..start]
@@ -189,68 +190,14 @@ impl ParseError {
 
 pub struct Ast(pub Expr);
 
-#[derive(Clone, Debug)]
-#[allow(clippy::vec_box)]
-pub enum Expr {
-    /// An integer.
-    Integer(i32),
-    /// A real number.
-    Real(f32),
-    /// An identifier.
-    Ident(String),
-    BinaryOp {
-        left: Box<Expr>,
-        op: BinaryOpCode,
-        right: Box<Expr>,
-    },
-    UnaryOp {
-        op: UnaryOpCode,
-        expr: Box<Expr>,
-    },
-    Call {
-        name: String,
-        args: Vec<Box<Expr>>,
-    },
-    Error,
-}
-
-#[derive(Clone, Debug)]
-pub enum BinaryOpCode {
-    /// Addition
-    Add,
-    /// Subtraction
-    Sub,
-    /// Multiplication
-    Mul,
-    /// Division
-    Div,
-    /// Exponentiation
-    Pow,
-    /// Equals
-    Eq,
-    /// Less than
-    Lt,
-    /// Greater than
-    Gt,
-    /// Less than equals
-    Lte,
-    /// Greater than equals
-    Gte,
-}
-
-#[derive(Clone, Debug)]
-pub enum UnaryOpCode {
-    Neg,
-}
-
 impl FromStr for Ast {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut errors = Vec::new();
 
-        let stmt = match crate::grammar::StatementParser::new().parse(&mut errors, s) {
-            Ok(stmt) => stmt,
+        let expr = match crate::grammar::ExprParser::new().parse(&mut errors, s) {
+            Ok(expr) => expr,
             Err(err) => return Err(err.into()),
         };
 
@@ -260,100 +207,6 @@ impl FromStr for Ast {
             ));
         }
 
-        Ok(Ast(*stmt))
-    }
-}
-
-impl Expr {
-    pub fn leaves(&self) -> Vec<Expr> {
-        match self {
-            Expr::BinaryOp { left, op: _, right } => vec![*left.clone(), *right.clone()],
-            Expr::UnaryOp { op: _, expr } => vec![*expr.clone()],
-            Expr::Call { name: _, args } => args.iter().map(|e| *e.clone()).collect(),
-            _ => vec![],
-        }
-    }
-}
-
-type DisplayQueue = VecDeque<(bool, Expr, Vec<bool>)>;
-
-const GLYPH_MIDDLE_ITEM: &str = "├";
-const GLYPH_LAST_ITEM: &str = "└";
-const GLYPH_ITEM_INDENT: &str = "── ";
-const GLYPH_MIDDLE_SKIP: &str = "│";
-const GLYPH_LAST_SKIP: &str = " ";
-const GLYPH_SKIP_INDENT: &str = "  ";
-
-fn enqueue_leaves(queue: &mut DisplayQueue, parent: &Expr, spaces: Vec<bool>) {
-    for (i, leaf) in parent.leaves().iter().rev().enumerate() {
-        let last = i == 0;
-        queue.push_front((last, leaf.clone(), spaces.clone()));
-    }
-}
-
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::Integer(v) => write!(f, "{}{:?}", color::Fg(color::Yellow), v)?,
-            Expr::Real(v) => write!(f, "{}{:?}", color::Fg(color::Yellow), v)?,
-            Expr::Ident(v) => write!(f, "{}{:?}", color::Fg(color::White), v)?,
-            Expr::Error => write!(f, "{}error", color::Fg(color::Yellow))?,
-            Expr::BinaryOp { op, .. } => match op {
-                BinaryOpCode::Add => write!(f, "{}Add", color::Fg(color::Cyan))?,
-                BinaryOpCode::Sub => write!(f, "{}Sub", color::Fg(color::Cyan))?,
-                BinaryOpCode::Mul => write!(f, "{}Mul", color::Fg(color::Cyan))?,
-                BinaryOpCode::Div => write!(f, "{}Div", color::Fg(color::Cyan))?,
-                BinaryOpCode::Pow => write!(f, "{}Pow", color::Fg(color::Cyan))?,
-                BinaryOpCode::Eq => write!(f, "{}Eq", color::Fg(color::Cyan))?,
-                BinaryOpCode::Lt => write!(f, "{}Lt", color::Fg(color::Cyan))?,
-                BinaryOpCode::Gt => write!(f, "{}Gt", color::Fg(color::Cyan))?,
-                BinaryOpCode::Lte => write!(f, "{}Lte", color::Fg(color::Cyan))?,
-                BinaryOpCode::Gte => write!(f, "{}Gte", color::Fg(color::Cyan))?,
-            },
-            Expr::UnaryOp { op, .. } => match op {
-                UnaryOpCode::Neg => write!(f, "{}Neg", color::Fg(color::Cyan))?,
-            },
-            Expr::Call { name, .. } => write!(f, "{}{}", color::Fg(color::Blue), name)?,
-        };
-
-        write!(f, "{}", color::Fg(color::Reset))?;
-        writeln!(f)?;
-
-        let mut queue = DisplayQueue::new();
-        enqueue_leaves(&mut queue, self, Vec::new());
-
-        while let Some((last, leaf, spaces)) = queue.pop_front() {
-            let mut prefix = (
-                if last { GLYPH_LAST_ITEM } else { GLYPH_MIDDLE_ITEM },
-                GLYPH_ITEM_INDENT,
-            );
-
-            let rest_prefix = (
-                if last { GLYPH_LAST_SKIP } else { GLYPH_MIDDLE_SKIP },
-                GLYPH_SKIP_INDENT,
-            );
-
-            let root = format!("{}", leaf);
-            for line in root.lines() {
-                write!(f, "{}", color::Fg(color::LightBlack))?;
-                for s in spaces.as_slice() {
-                    if *s {
-                        GLYPH_LAST_SKIP.fmt(f)?;
-                    } else {
-                        GLYPH_MIDDLE_SKIP.fmt(f)?;
-                    }
-                    GLYPH_SKIP_INDENT.fmt(f)?;
-                }
-
-                prefix.0.fmt(f)?;
-                prefix.1.fmt(f)?;
-                write!(f, "{}", color::Fg(color::Reset))?;
-                line.fmt(f)?;
-                writeln!(f)?;
-                prefix = rest_prefix;
-            }
-        }
-
-        Ok(())
+        Ok(Ast(*expr))
     }
 }

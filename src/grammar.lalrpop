@@ -1,21 +1,28 @@
 use std::str::FromStr;
-use crate::parser::{Expr, BinaryOpCode, UnaryOpCode};
+use crate::expr::{Statement, Expr, AssertOpCode, BinaryOpCode, UnaryOpCode};
 use lalrpop_util::ErrorRecovery;
 
 grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
 
-pub Statement: Box<Expr> = {
-    CompExpr,
-    ! => { errors.push(<>); Box::new(Expr::Error) }
-};
-
-pub CompExpr: Box<Expr> = {
-    <left:Expr> <op:CompExprOp> <right:Expr> => Box::new(Expr::BinaryOp {<>}),
-    Expr,
+pub Statement: Box<Statement> = {
+    <left:Expr> <op:AssertOp> <right:Expr> => Box::new(Statement::Assertion {<>}),
+    <pattern:Expr> "=>" <result:Expr> => Box::new(Statement::Reduction {<>}),
+    Expr => Box::new(Statement::Expr(<>)),
+    ! => { errors.push(<>); Box::new(Statement::Error) }
 };
 
 pub Expr: Box<Expr> = {
-    <left:Expr> <op:ExprOp> <right:Term> => Box::new(Expr::BinaryOp {<>}),
+    "{" <mut stmts:(<Statement> ";")*> <expr:Expr> "}" => Box::new(Expr::Block {<>}),
+    CompExpr,
+};
+
+pub CompExpr: Box<Expr> = {
+    <left:MathExpr> <op:CompExprOp> <right:MathExpr> => Box::new(Expr::BinaryOp {<>}),
+    MathExpr,
+};
+
+pub MathExpr: Box<Expr> = {
+    <left:MathExpr> <op:ExprOp> <right:Term> => Box::new(Expr::BinaryOp {<>}),
     Term,
 };
 
@@ -39,10 +46,18 @@ pub FactorRhs: Box<Expr> = {
 pub Atom: Box<Expr> = {
     Integer => Box::new(Expr::Integer(<>)),
     Real => Box::new(Expr::Real(<>)),
-    Ident => Box::new(Expr::Ident(<>)),
-    "(" <Expr> ")",
-    <name:Ident> "[" <args:Comma<Expr>> "]" => Box::new(Expr::Call {<>}),
+    Ident => Box::new(Expr::Var(<>)),
+    "(" <MathExpr> ")",
+    <name:Ident> "[" <args:Comma<MathExpr>> "]" => Box::new(Expr::Call {<>}),
 };
+
+AssertOp: AssertOpCode = {
+    ":=" => AssertOpCode::Eq,
+    ":<" => AssertOpCode::Lt,
+    ":>" => AssertOpCode::Gt,
+    ":<=" => AssertOpCode::Lte,
+    ":>=" => AssertOpCode::Gte,
+}
 
 CompExprOp: BinaryOpCode = {
     "==" => BinaryOpCode::Eq,

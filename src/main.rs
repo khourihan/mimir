@@ -4,7 +4,9 @@ use parser::Ast;
 use rustyline::{Config, EditMode, Editor, error::ReadlineError, history::DefaultHistory};
 use termion::{color, cursor, style};
 
+mod expr;
 mod parser;
+mod strutils;
 lalrpop_mod!(pub grammar, "/grammar.rs");
 
 #[derive(Clone, Copy, IterEnum, StringifyEnum)]
@@ -37,12 +39,14 @@ pub fn select_method(stdin: &mut Editor<(), DefaultHistory>, depth: u16) -> rust
 fn main() {
     let mut stdin =
         Editor::<(), DefaultHistory>::with_config(Config::builder().edit_mode(EditMode::Vi).build()).unwrap();
+    let mut src = String::new();
+    let mut line = 1;
 
     println!();
 
     loop {
-        match stdin.readline(">> ") {
-            Ok(mut input) => {
+        match stdin.readline(&format!("[{}] >> ", line)) {
+            Ok(input) => {
                 RunMethod::iter_fields().enumerate().for_each(|(i, x)| {
                     println!(
                         "{}{}[{}] {}{}{}",
@@ -57,11 +61,24 @@ fn main() {
 
                 let Ok(opts) = select_method(&mut stdin, 0) else { break };
 
-                let ast: Ast = match input.parse() {
-                    Ok(ast) => ast,
+                let mut src_new = src.clone();
+                if line != 1 {
+                    src_new.push(';');
+                    src_new.push('\n');
+                }
+                src_new.push_str(&input);
+                strutils::bracket(&mut src_new, "{\n", "\n}");
+
+                let ast: Ast = match src_new.parse() {
+                    Ok(ast) => {
+                        strutils::unquote(&mut src_new);
+                        strutils::unquote(&mut src_new);
+                        src = src_new;
+                        line += 1;
+                        ast
+                    },
                     Err(err) => {
-                        input.insert(0, '\n');
-                        err.fmt(&input);
+                        err.fmt(&src_new);
                         continue;
                     },
                 };

@@ -13,6 +13,7 @@ thiserror = "2.0.12"
 rustyline = "15.0.0"
 termion = "4.0.5"
 dyn-clone = "1.0.19"
+itertools = "0.14.0"
 
 [build-dependencies]
 lalrpop = "0.22.1"

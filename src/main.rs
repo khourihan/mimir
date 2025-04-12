@@ -1,10 +1,12 @@
 use lalrpop_util::lalrpop_mod;
 use mimir_macros::{IterEnum, StringifyEnum};
+use operation::{Operation, reduce::ReduceOp};
 use parser::{Ast, ParseError};
 use rustyline::{Config, EditMode, Editor, error::ReadlineError, history::DefaultHistory};
 use termion::{color, cursor, style};
 
 mod expr;
+mod operation;
 mod parser;
 mod strutils;
 lalrpop_mod!(pub grammar, "/grammar.rs");
@@ -12,6 +14,7 @@ lalrpop_mod!(pub grammar, "/grammar.rs");
 #[derive(Clone, Copy, IterEnum, StringifyEnum)]
 pub enum RunMethod {
     ShowAST,
+    Reduce,
 }
 
 pub fn select_method(stdin: &mut Editor<(), DefaultHistory>, depth: u16) -> rustyline::Result<RunMethod> {
@@ -55,7 +58,7 @@ fn main() {
                         i,
                         color::Fg(color::Reset),
                         style::Reset,
-                        x.stringify_pretty()
+                        x.stringify_field()
                     );
                 });
 
@@ -94,6 +97,15 @@ fn main() {
                 match opts {
                     RunMethod::ShowAST => {
                         print!("{}", ast.0);
+                    },
+                    RunMethod::Reduce => {
+                        let mut reduce = ReduceOp::new(Vec::new());
+                        let mut results = reduce.apply(Box::new(ast.0)).unwrap();
+                        results.dedup();
+                        println!();
+                        for result in results {
+                            println!("{}", *result);
+                        }
                     },
                 }
             },

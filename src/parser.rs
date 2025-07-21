@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::expr::Expr;
+use crate::expr::{Expr, Statement};
 
 use termion::{color, style};
 
@@ -188,15 +188,20 @@ impl ParseError {
     }
 }
 
-pub struct Ast(pub Expr);
+#[allow(clippy::vec_box)]
+pub struct Ast {
+    pub expr: Option<Expr>,
+    pub stmts: Vec<Box<Statement>>,
+}
 
 impl FromStr for Ast {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut errors = Vec::new();
+        let mut stmts = Vec::new();
 
-        let expr = match crate::grammar::ExprParser::new().parse(&mut errors, s) {
+        let expr = match crate::grammar::ExprParser::new().parse(&mut errors, &mut stmts, s) {
             Ok(expr) => expr,
             Err(err) => return Err(err.into()),
         };
@@ -207,6 +212,9 @@ impl FromStr for Ast {
             ));
         }
 
-        Ok(Ast(*expr))
+        Ok(Ast {
+            expr: expr.map(|e| *e),
+            stmts,
+        })
     }
 }

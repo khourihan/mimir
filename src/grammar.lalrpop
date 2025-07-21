@@ -1,96 +1,97 @@
 use std::str::FromStr;
-use crate::expr::{Statement, Expr, AssertOpCode, BinaryOpCode, UnaryOpCode};
+use crate::expr::{Statement, Expr};
 use lalrpop_util::ErrorRecovery;
+use ordered_float::OrderedFloat;
 
-grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
+grammar<'err, 'stmts>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>, stmts: &'stmts mut Vec<Box<Statement>>);
 
 pub Statement: Box<Statement> = {
-    <left:Expr> <op:AssertOp> <right:Expr> => Box::new(Statement::Assertion {<>}),
-    <pattern:Expr> "=>" <result:Expr> => Box::new(Statement::Reduction {<>}),
-    Expr => Box::new(Statement::Expr(<>)),
+    <pattern:CompExpr> "=>" <result:CompExpr> => Box::new(Statement::Reduction { pattern: pattern.into(), result }),
     ! => { errors.push(<>); Box::new(Statement::Error) }
 };
 
-pub Expr: Box<Expr> = {
-    "{" <mut stmts:(<Statement> ";")*> <expr:Expr?> "}" => Box::new(Expr::Block {<>}),
-    CompExpr,
+pub Expr: Option<Box<Expr>> = {
+    "{" <s:(<Statement> ";")*> <expr:CompExpr?> "}" => { stmts.extend(s); expr },
+    CompExpr => Some(<>),
 };
 
 pub CompExpr: Box<Expr> = {
-    <left:MathExpr> <op:CompExprOp> <right:MathExpr> => Box::new(Expr::BinaryOp {<>}),
+    <left:MathExpr> <op:CompExprOp> <right:MathExpr> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
     MathExpr,
 };
 
 pub MathExpr: Box<Expr> = {
-    <left:MathExpr> <op:ExprOp> <right:Term> => Box::new(Expr::BinaryOp {<>}),
+    <left:MathExpr> <op:ExprOp> <right:Term> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
     Term,
 };
 
 pub Term: Box<Expr> = {
-    <left:Term> <op:TermOp> <right:Factor> => Box::new(Expr::BinaryOp {<>}),
-    <left:Term> <right:Atom> => Box::new(Expr::BinaryOp { op: BinaryOpCode::Mul, left, right }),
+    <left:Term> <op:TermOp> <right:Factor> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
+    <left:Term> <right:Atom> => Box::new(Expr::Call { name: String::from("mul"), args: vec![left, right] }),
     Factor,
 };
 
 pub Factor: Box<Expr> = {
-    <left:Atom> <op:FactorOp> <right:FactorRhs> => Box::new(Expr::BinaryOp {<>}),
-    <op:UnaryOp> <expr:Factor> => Box::new(Expr::UnaryOp {<>}),
+    <left:Atom> <op:FactorOp> <right:FactorRhs> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
+    <op:UnaryOp> <expr:Factor> => Box::new(Expr::Call { name: op, args: vec![expr] }),
     Atom,
 };
 
 pub FactorRhs: Box<Expr> = {
-    <op:UnaryOp> <expr:Atom> => Box::new(Expr::UnaryOp {<>}),
+    <op:UnaryOp> <expr:Atom> => Box::new(Expr::Call { name: op, args: vec![expr] }),
     Atom,
 };
 
 pub Atom: Box<Expr> = {
     Integer => Box::new(Expr::Integer(<>)),
     Real => Box::new(Expr::Real(<>)),
-    Ident => Box::new(Expr::Var(<>)),
+    Var => Box::new(Expr::Var(<>)),
     "(" <MathExpr> ")",
-    <name:Ident> "[" <args:Comma<MathExpr>> "]" => Box::new(Expr::Call {<>}),
+    <name:Var> "[" <args:Comma<MathExpr>> "]" => Box::new(Expr::Call {<>}),
 };
 
-AssertOp: AssertOpCode = {
-    ":=" => AssertOpCode::Eq,
-    ":<" => AssertOpCode::Lt,
-    ":>" => AssertOpCode::Gt,
-    ":<=" => AssertOpCode::Lte,
-    ":>=" => AssertOpCode::Gte,
-}
-
-CompExprOp: BinaryOpCode = {
-    "==" => BinaryOpCode::Eq,
-    "<" => BinaryOpCode::Lt,
-    ">" => BinaryOpCode::Gt,
-    "<=" => BinaryOpCode::Lte,
-    ">=" => BinaryOpCode::Gte,
+CompExprOp: String = {
+    "==" => String::from("eq"),
+    "<" => String::from("lt"),
+    ">" => String::from("gt"),
+    "<=" => String::from("lte"),
+    ">=" => String::from("gte"),
 };
 
-ExprOp: BinaryOpCode = {
-    "+" => BinaryOpCode::Add,
-    "-" => BinaryOpCode::Sub,
+ExprOp: String = {
+    "+" => String::from("add"),
+    "-" => String::from("sub"),
 };
 
-TermOp: BinaryOpCode = {
-    "*" => BinaryOpCode::Mul,
-    "/" => BinaryOpCode::Div,
+TermOp: String = {
+    "*" => String::from("mul"),
+    "/" => String::from("div"),
 };
 
-FactorOp: BinaryOpCode = {
-    "^" => BinaryOpCode::Pow,
+FactorOp: String = {
+    "^" => String::from("pow"),
 };
 
-UnaryOp: UnaryOpCode = {
-    "-" => UnaryOpCode::Neg,
+UnaryOp: String = {
+    "-" => String::from("neg"),
 };
 
 Integer: i32 = r"[0-9]+" => i32::from_str(<>).unwrap();
-Real: f32 = r"[0-9]+\.[0-9]*|[+-]?\.[0-9]+" => f32::from_str(<>).unwrap();
-Ident: String = r"[a-zA-Z_][a-zA-Z0-9_]*" => String::from(<>);
+Real: OrderedFloat<f32> = r"[0-9]+\.[0-9]*|[+-]?\.[0-9]+" => OrderedFloat(f32::from_str(<>).unwrap());
+Var: String = r"[a-zA-Z][a-zA-Z0-9_]*" => String::from(<>);
 
 Comma<T>: Vec<T> = {
     <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+Semicolon<T>: Vec<T> = {
+    <mut v:(<T> ";")*> <e:T?> => match e {
         None => v,
         Some(e) => {
             v.push(e);

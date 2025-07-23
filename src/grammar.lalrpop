@@ -1,97 +1,63 @@
 use std::str::FromStr;
-use crate::expr::{Statement, Expr};
+use crate::{expr::{Expr, Num, Var, Fun, Pow, Mul, Add}, parser::TermOp};
 use lalrpop_util::ErrorRecovery;
 use ordered_float::OrderedFloat;
 
-grammar<'err, 'stmts>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>, stmts: &'stmts mut Vec<Box<Statement>>);
+grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
 
-pub Statement: Box<Statement> = {
-    <pattern:CompExpr> "=>" <result:CompExpr> => Box::new(Statement::Reduction { pattern: pattern.into(), result }),
-    ! => { errors.push(<>); Box::new(Statement::Error) }
-};
-
-pub Expr: Option<Box<Expr>> = {
-    "{" <s:(<Statement> ";")*> <expr:CompExpr?> "}" => { stmts.extend(s); expr },
-    CompExpr => Some(<>),
-};
-
-pub CompExpr: Box<Expr> = {
-    <left:MathExpr> <op:CompExprOp> <right:MathExpr> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
-    MathExpr,
-};
-
-pub MathExpr: Box<Expr> = {
-    <left:MathExpr> <op:ExprOp> <right:Term> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
-    Term,
-};
-
-pub Term: Box<Expr> = {
-    <left:Term> <op:TermOp> <right:Factor> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
-    <left:Term> <right:Atom> => Box::new(Expr::Call { name: String::from("mul"), args: vec![left, right] }),
-    Factor,
-};
-
-pub Factor: Box<Expr> = {
-    <left:Atom> <op:FactorOp> <right:FactorRhs> => Box::new(Expr::Call { name: op, args: vec![left, right] }),
-    <op:UnaryOp> <expr:Factor> => Box::new(Expr::Call { name: op, args: vec![expr] }),
-    Atom,
-};
-
-pub FactorRhs: Box<Expr> = {
-    <op:UnaryOp> <expr:Atom> => Box::new(Expr::Call { name: op, args: vec![expr] }),
-    Atom,
-};
-
-pub Atom: Box<Expr> = {
-    Integer => Box::new(Expr::Integer(<>)),
-    Real => Box::new(Expr::Real(<>)),
-    Var => Box::new(Expr::Var(<>)),
-    "(" <MathExpr> ")",
-    <name:Var> "[" <args:Comma<MathExpr>> "]" => Box::new(Expr::Call {<>}),
-};
-
-CompExprOp: String = {
-    "==" => String::from("eq"),
-    "<" => String::from("lt"),
-    ">" => String::from("gt"),
-    "<=" => String::from("lte"),
-    ">=" => String::from("gte"),
-};
-
-ExprOp: String = {
-    "+" => String::from("add"),
-    "-" => String::from("sub"),
-};
-
-TermOp: String = {
-    "*" => String::from("mul"),
-    "/" => String::from("div"),
-};
-
-FactorOp: String = {
-    "^" => String::from("pow"),
-};
-
-UnaryOp: String = {
-    "-" => String::from("neg"),
-};
-
-Integer: i32 = r"[0-9]+" => i32::from_str(<>).unwrap();
-Real: OrderedFloat<f32> = r"[0-9]+\.[0-9]*|[+-]?\.[0-9]+" => OrderedFloat(f32::from_str(<>).unwrap());
-Var: String = r"[a-zA-Z][a-zA-Z0-9_]*" => String::from(<>);
-
-Comma<T>: Vec<T> = {
-    <mut v:(<T> ",")*> <e:T?> => match e {
-        None => v,
-        Some(e) => {
-            v.push(e);
-            v
+pub Expr: Box<Expr> = {
+    <t:Term> <ts:(<TermOp>)*> => {
+        if ts.is_empty() {
+            t
+        } else {
+            let terms = std::iter::once(t)
+                .chain(ts.into_iter().map(|t| match t {
+                    TermOp::Add(expr) => expr,
+                    TermOp::Sub(expr) => Box::new(expr.mul(Expr::Num(Num::Integer(-1)))),
+                }))
+                .collect();
+            Box::new(Expr::Add(Add::new_boxed(terms)))
         }
     }
 };
 
-Semicolon<T>: Vec<T> = {
-    <mut v:(<T> ";")*> <e:T?> => match e {
+pub TermOp: TermOp = {
+    "+" <Term> => TermOp::Add(<>),
+    "-" <Term> => TermOp::Sub(<>),
+};
+
+pub Term: Box<Expr> = {
+    <left:Term> "*" <right:Factor> => Box::new(left.mul(*right)),
+    <left:Term> "/" <right:Factor> => Box::new(left.mul(right.pow(Expr::Num(Num::Integer(-1))))),
+    <left:Term> <right:Atom> => Box::new(left.mul(*right)),
+    Factor
+};
+
+pub Factor: Box<Expr> = {
+    <left:Atom> "^" <right:FactorRhs> => Box::new(Expr::Pow(Pow::new_boxed(left, right))),
+    "-" <expr:Factor> => Box::new(expr.mul(Expr::Num(Num::Integer(-1)))),
+    Atom,
+};
+
+pub FactorRhs: Box<Expr> = {
+    "-" <expr:Atom> => Box::new(expr.mul(Expr::Num(Num::Integer(-1)))),
+    Atom,
+};
+
+pub Atom: Box<Expr> = {
+    Integer => Box::new(Expr::Num(<>)),
+    Real => Box::new(Expr::Num(<>)),
+    Var => Box::new(Expr::Var(Var::new(<>))),
+    "(" <Expr> ")",
+    <name:Var> "[" <args:Comma<Expr>> "]" => Box::new(Expr::Fun(Fun::new_boxed(name, args))),
+};
+
+Integer: Num = r"[0-9]+" => Num::Integer(i32::from_str(<>).unwrap());
+Real: Num = r"[0-9]+\.[0-9]*|[+-]?\.[0-9]+" => Num::Float(OrderedFloat(f32::from_str(<>).unwrap()));
+Var: String = r"[a-zA-Z][a-zA-Z0-9_]*" => String::from(<>);
+
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
         None => v,
         Some(e) => {
             v.push(e);

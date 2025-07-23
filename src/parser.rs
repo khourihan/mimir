@@ -1,8 +1,13 @@
 use std::str::FromStr;
 
-use crate::expr::{Expr, Statement};
+use crate::expr::Expr;
 
 use termion::{color, style};
+
+pub enum TermOp {
+    Add(Box<Expr>),
+    Sub(Box<Expr>),
+}
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -190,8 +195,7 @@ impl ParseError {
 
 #[allow(clippy::vec_box)]
 pub struct Ast {
-    pub expr: Option<Expr>,
-    pub stmts: Vec<Box<Statement>>,
+    pub expr: Expr,
 }
 
 impl FromStr for Ast {
@@ -199,9 +203,8 @@ impl FromStr for Ast {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut errors = Vec::new();
-        let mut stmts = Vec::new();
 
-        let expr = match crate::grammar::ExprParser::new().parse(&mut errors, &mut stmts, s) {
+        let expr = match crate::grammar::ExprParser::new().parse(&mut errors, s) {
             Ok(expr) => expr,
             Err(err) => return Err(err.into()),
         };
@@ -212,9 +215,6 @@ impl FromStr for Ast {
             ));
         }
 
-        Ok(Ast {
-            expr: expr.map(|e| *e),
-            stmts,
-        })
+        Ok(Ast { expr: *expr })
     }
 }

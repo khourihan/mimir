@@ -75,6 +75,7 @@ fn main() {
                         ast
                     },
                     Err(err) => {
+                        input.insert(0, '\n');
                         err.fmt(&input, line);
                         continue;
                     },

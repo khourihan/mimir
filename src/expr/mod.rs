@@ -2,11 +2,13 @@
 
 use std::{cmp::Ordering, collections::VecDeque, fmt};
 
+pub use add::Add;
 use dyn_clone::DynClone;
 pub use mul::Mul;
 pub use num::Num;
 use termion::color;
 
+mod add;
 mod mul;
 mod num;
 
@@ -37,11 +39,6 @@ pub struct Pow {
     pub exp: Box<Expr>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct Add {
-    pub terms: Vec<Expr>,
-}
-
 impl Var {
     pub fn new(name: String) -> Var {
         Var { name }
@@ -65,16 +62,6 @@ impl Pow {
 
     pub fn new_boxed(base: Box<Expr>, exp: Box<Expr>) -> Pow {
         Pow { base, exp }
-    }
-}
-
-impl Add {
-    pub fn new(terms: Vec<Expr>) -> Add {
-        Add { terms }
-    }
-
-    pub fn new_boxed(factors: Vec<Box<Expr>>) -> Add {
-        Add::new(factors.into_iter().map(|x| *x).collect())
     }
 }
 

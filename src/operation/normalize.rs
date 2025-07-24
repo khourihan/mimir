@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 
-use crate::expr::{Add, Expr, Mul, Num};
+use crate::expr::{Add, Expr, Mul, Num, Pow};
 
 impl Expr {
-    pub fn cmp_factors(&self, other: &Self) -> Ordering {
+    fn cmp_factors(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Expr::Num(_), Expr::Num(_)) => Ordering::Equal,
             (Expr::Num(_), _) => Ordering::Greater,
@@ -57,7 +57,7 @@ impl Expr {
         }
     }
 
-    pub fn cmp_terms(&self, other: &Self) -> Ordering {
+    fn cmp_terms(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Expr::Num(_), Expr::Num(_)) => Ordering::Equal,
             (Expr::Num(_), _) => Ordering::Greater,
@@ -141,6 +141,223 @@ impl Expr {
         }
     }
 
+    fn merge_factors(&self, other: &Self) -> Option<Self> {
+        if let Expr::Pow(p1) = self {
+            // x^a * x^b = x^(a + b)
+            if let Expr::Pow(p2) = other {
+                if p1.base != p2.base {
+                    return None;
+                }
+
+                if let Expr::Num(n1) = &*p1.exp {
+                    if let Expr::Num(n2) = &*p2.exp {
+                        let new_exp = n1 + n2;
+
+                        if new_exp.is_zero() {
+                            return Some(Expr::Num(Num::Integer(1)));
+                        } else if new_exp.is_one() {
+                            return Some(*p2.base.clone());
+                        } else {
+                            return Some(Expr::Pow(Pow::new(*p2.base.clone(), Expr::Num(new_exp))));
+                        }
+                    }
+                }
+
+                let new_exp = Expr::Add(Add::new(vec![*p1.exp.clone(), *p2.exp.clone()])).normalize();
+
+                if let Expr::Num(n) = &new_exp {
+                    if n.is_zero() {
+                        return Some(Expr::Num(Num::Integer(1)));
+                    } else if n.is_one() {
+                        return Some(*p2.base.clone());
+                    }
+                }
+
+                return Some(Expr::Pow(Pow::new(*p2.base.clone(), new_exp)));
+            }
+
+            // x^n * x = x^(n + 1) but don't merge numbers
+            if !matches!(other, Expr::Num(_)) && *other == *p1.base {
+                if let Expr::Num(n) = &*p1.exp {
+                    let new_exp = n + &Num::Integer(1);
+
+                    if new_exp.is_zero() {
+                        return Some(Expr::Num(Num::Integer(1)));
+                    } else if new_exp == Num::Integer(1) {
+                        return Some(other.clone());
+                    } else {
+                        return Some(Expr::Pow(Pow::new(other.clone(), Expr::Num(new_exp))));
+                    }
+                } else {
+                    let new_exp = Expr::Add(Add::new(vec![Expr::Num(Num::Integer(1)), *p1.exp.clone()])).normalize();
+                    return Some(Expr::Pow(Pow::new(*p1.base.clone(), new_exp)));
+                }
+            }
+
+            return None;
+        }
+
+        // x * x^n = x^(n + 1) but don't merge numbers
+        if let Expr::Pow(p) = other {
+            if !matches!(self, Expr::Num(_)) && *self == *p.base {
+                if let Expr::Num(n) = &*p.exp {
+                    let new_exp = n + &Num::Integer(1);
+
+                    if new_exp.is_zero() {
+                        return Some(Expr::Num(Num::Integer(1)));
+                    } else if new_exp == Num::Integer(1) {
+                        return Some(*p.base.clone());
+                    } else {
+                        return Some(Expr::Pow(Pow::new(*p.base.clone(), Expr::Num(new_exp))));
+                    }
+                } else {
+                    let new_exp = Expr::Add(Add::new(vec![Expr::Num(Num::Integer(1)), *p.exp.clone()])).normalize();
+                    return Some(Expr::Pow(Pow::new(*p.base.clone(), new_exp)));
+                }
+            }
+
+            return None;
+        }
+
+        // multiply numbers
+        if let Expr::Num(n1) = self {
+            if let Expr::Num(n2) = other {
+                return Some(Expr::Num(n1 * n2));
+            } else {
+                return None;
+            }
+        }
+
+        // x * x = x^2
+        if self == other {
+            return Some(Expr::Pow(Pow::new(self.clone(), Expr::Num(Num::Integer(2)))));
+        }
+
+        None
+    }
+
+    fn merge_terms(&self, other: &Self) -> Option<Self> {
+        // add numbers
+        if let Expr::Num(n1) = self {
+            if let Expr::Num(n2) = other {
+                return Some(Expr::Num(n1 + n2));
+            } else {
+                return None;
+            }
+        }
+
+        // add coefficients
+        if let Expr::Mul(m) = self {
+            let last_term = m.factors.last().unwrap();
+
+            let (term1, has_coeff) = if let Expr::Num(_) = &last_term {
+                (&m.factors[0..m.factors.len() - 1], true)
+            } else {
+                (&m.factors[..], false)
+            };
+
+            if let Expr::Mul(m2) = other {
+                let last_term2 = m2.factors.last().unwrap();
+
+                let term2 = if let Expr::Num(_) = &last_term2 {
+                    &m2.factors[0..m2.factors.len() - 1]
+                } else {
+                    &m2.factors[..]
+                };
+
+                if term1.eq(term2) {
+                    let num = if let Expr::Num(n) = &last_term {
+                        n
+                    } else {
+                        &Num::Integer(1)
+                    };
+
+                    let new_coeff = if let Expr::Num(n) = &last_term2 {
+                        num + n
+                    } else {
+                        num + &Num::Integer(1)
+                    };
+
+                    let len = m.factors.len();
+
+                    if new_coeff == Num::Integer(1) {
+                        assert!(has_coeff);
+
+                        if len == 2 {
+                            return Some(m2.factors[0].clone());
+                        } else {
+                            return Some(Expr::Mul(Mul::new(term2.into())));
+                        }
+                    }
+
+                    if new_coeff.is_zero() {
+                        return Some(Expr::Num(new_coeff));
+                    }
+
+                    let mut mc = m.clone();
+
+                    if has_coeff {
+                        mc.factors[m.factors.len() - 1] = Expr::Num(new_coeff);
+                    } else {
+                        mc.push(Expr::Num(new_coeff));
+                    }
+
+                    return Some(Expr::Mul(mc));
+                }
+            } else {
+                if term1.len() != 1 || *other != m.factors[0] {
+                    return None;
+                }
+
+                let new_coeff = if let Expr::Num(n) = &last_term {
+                    n + &Num::Integer(1)
+                } else {
+                    return None;
+                };
+
+                assert!(new_coeff != Num::Integer(1));
+
+                if new_coeff.is_zero() {
+                    return Some(Expr::Num(new_coeff));
+                }
+
+                let mut mc = m.clone();
+                mc.factors[m.factors.len() - 1] = Expr::Num(new_coeff);
+
+                return Some(Expr::Mul(mc));
+            }
+        } else if let Expr::Mul(m) = other {
+            if m.factors.len() == 2 {
+                return None;
+            }
+
+            let last_term = m.factors.last().unwrap();
+
+            if *self == m.factors[0] {
+                let new_coeff = if let Expr::Num(n) = &last_term {
+                    n + &Num::Integer(1)
+                } else {
+                    return None;
+                };
+
+                assert!(new_coeff != Num::Integer(1));
+
+                if new_coeff.is_zero() {
+                    return Some(Expr::Num(new_coeff));
+                }
+
+                let mut mc = m.clone();
+                mc.factors[m.factors.len() - 1] = Expr::Num(new_coeff);
+
+                return Some(Expr::Mul(mc));
+            }
+        } else if self == other {
+            return Some(Expr::Mul(Mul::new(vec![self.clone(), Expr::Num(Num::Integer(2))])));
+        };
+
+        None
+    }
+
     pub fn normalize(self) -> Expr {
         match self {
             Expr::Num(num) => Expr::Num(num),
@@ -191,7 +408,63 @@ impl Expr {
 
                 factors.sort_by(|a, b| a.cmp_factors(b));
 
-                Expr::Mul(Mul::new(factors))
+                let mut second_pass = false;
+                if !factors.is_empty() {
+                    let mut out = Mul::default();
+
+                    factors.reverse();
+                    let mut last_factor = factors.pop().unwrap();
+                    let mut cur_len = 0;
+
+                    while let Some(cur_factor) = factors.pop() {
+                        let Some(merged_factor) = last_factor.merge_factors(&cur_factor) else {
+                            if let Expr::Num(n) = &last_factor {
+                                if !n.is_one() {
+                                    // catch i*i = -1 not fully reducing
+                                    factors.insert(0, last_factor);
+                                }
+                            } else {
+                                out.push(last_factor);
+                                cur_len += 1;
+                            }
+
+                            last_factor = cur_factor;
+                            continue;
+                        };
+
+                        if let Expr::Mul(_) = &merged_factor {
+                            // a sub-multiplication was created
+                            second_pass = true;
+                        }
+
+                        last_factor = merged_factor;
+                    }
+
+                    if cur_len == 0 {
+                        last_factor
+                    } else {
+                        if second_pass {
+                            out.push(last_factor);
+                            return Expr::Mul(out).normalize();
+                        }
+
+                        if let Expr::Num(n) = &last_factor {
+                            if !n.is_one() {
+                                out.push(last_factor);
+                                Expr::Mul(out)
+                            } else if cur_len == 1 {
+                                out.factors[0].clone()
+                            } else {
+                                Expr::Mul(out)
+                            }
+                        } else {
+                            out.push(last_factor);
+                            Expr::Mul(out)
+                        }
+                    }
+                } else {
+                    Expr::Num(Num::Integer(1))
+                }
             },
             Expr::Add(add) => {
                 let mut terms = Vec::new();
@@ -222,7 +495,49 @@ impl Expr {
 
                 terms.sort_by(|a, b| a.cmp_terms(b));
 
-                Expr::Add(Add::new(terms))
+                if !terms.is_empty() {
+                    let mut out = Add::default();
+
+                    let mut last_term = terms[0].clone();
+                    let mut cur_len = 0;
+
+                    for cur_term in terms.iter().skip(1) {
+                        let Some(merged_term) = last_term.merge_terms(cur_term) else {
+                            if let Expr::Num(n) = &last_term {
+                                if !n.is_zero() {
+                                    out.push(last_term);
+                                    cur_len += 1;
+                                }
+                            } else {
+                                out.push(last_term);
+                                cur_len += 1;
+                            }
+
+                            last_term = cur_term.clone();
+                            continue;
+                        };
+
+                        last_term = merged_term;
+                    }
+
+                    if cur_len == 0 {
+                        last_term
+                    } else if let Expr::Num(n) = &last_term {
+                        if !n.is_zero() {
+                            out.push(last_term);
+                            Expr::Add(out)
+                        } else if cur_len == 1 {
+                            out.terms[0].clone()
+                        } else {
+                            Expr::Add(out)
+                        }
+                    } else {
+                        out.push(last_term);
+                        Expr::Add(out)
+                    }
+                } else {
+                    Expr::Num(Num::Integer(0))
+                }
             },
         }
     }

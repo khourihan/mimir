@@ -1,6 +1,6 @@
 use super::Expr;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct Mul {
     pub factors: Vec<Expr>,
 }
@@ -14,8 +14,33 @@ impl Mul {
         Mul::new(factors.into_iter().map(|x| *x).collect())
     }
 
+    #[inline]
+    pub fn push(&mut self, expr: Expr) {
+        self.factors.push(expr);
+    }
+
+    #[inline]
+    pub fn iter(&self) -> std::slice::Iter<Expr> {
+        self.factors.iter()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<Expr> {
+        self.factors.iter_mut()
+    }
+
+    #[inline]
     pub fn has_coefficient(&self) -> bool {
         self.factors.iter().any(|x| matches!(x, Expr::Num(_)))
+    }
+}
+
+impl IntoIterator for Mul {
+    type Item = Expr;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.factors.into_iter()
     }
 }
 

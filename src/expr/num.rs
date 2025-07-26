@@ -3,7 +3,7 @@ use std::ops;
 
 use ordered_float::OrderedFloat;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Num {
     Integer(i32),
     Float(OrderedFloat<f32>),
@@ -91,6 +91,30 @@ impl Num {
             Num::Integer(int) => *int == 0,
             Num::Float(float) => float.abs() <= 2e-4,
             Num::Rational(n, d) => *n == 0 && *d != 0,
+        }
+    }
+
+    pub fn is_negative_one(&self) -> bool {
+        match self {
+            Num::Integer(int) => *int == -1,
+            Num::Float(float) => (float + 1.0).abs() <= 2e-4,
+            Num::Rational(n, d) => n.abs() == d.abs() && n.is_negative() ^ d.is_negative(),
+        }
+    }
+
+    pub fn is_negative(&self) -> bool {
+        match self {
+            Num::Integer(int) => int.is_negative(),
+            Num::Float(float) => float.is_sign_negative(),
+            Num::Rational(n, d) => n.is_negative() ^ d.is_negative(),
+        }
+    }
+
+    pub fn abs(&self) -> Num {
+        match self {
+            Num::Integer(int) => Num::Integer(int.abs()),
+            Num::Float(float) => Num::Float(OrderedFloat(float.abs())),
+            Num::Rational(n, d) => Num::Rational(n.abs(), d.abs()),
         }
     }
 }

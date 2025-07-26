@@ -1,6 +1,6 @@
 use super::Expr;
 
-#[derive(Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Add {
     pub terms: Vec<Expr>,
 }

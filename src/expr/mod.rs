@@ -1,18 +1,19 @@
 #![allow(clippy::vec_box)]
 
-use std::{cmp::Ordering, collections::VecDeque, fmt};
+use std::cmp::Ordering;
 
 pub use add::Add;
-use dyn_clone::DynClone;
+pub use fun::Fun;
 pub use mul::Mul;
 pub use num::Num;
-use termion::color;
 
 mod add;
+mod fmt;
+mod fun;
 mod mul;
 mod num;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Num(Num),
     Var(Var),
@@ -22,18 +23,22 @@ pub enum Expr {
     Add(Add),
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, PartialOrd, Ord)]
+pub enum ExprType {
+    Num = 0,
+    Var = 1,
+    Fun = 2,
+    Pow = 3,
+    Mul = 4,
+    Add = 5,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Var {
     pub name: String,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct Fun {
-    pub name: String,
-    pub args: Vec<Expr>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pow {
     pub base: Box<Expr>,
     pub exp: Box<Expr>,
@@ -42,16 +47,6 @@ pub struct Pow {
 impl Var {
     pub fn new(name: String) -> Var {
         Var { name }
-    }
-}
-
-impl Fun {
-    pub fn new(name: String, args: Vec<Expr>) -> Fun {
-        Fun { name, args }
-    }
-
-    pub fn new_boxed(name: String, args: Vec<Box<Expr>>) -> Fun {
-        Fun::new(name, args.into_iter().map(|x| *x).collect())
     }
 }
 
@@ -66,6 +61,17 @@ impl Pow {
 }
 
 impl Expr {
+    pub fn expr_type(&self) -> ExprType {
+        match self {
+            Expr::Num(_) => ExprType::Num,
+            Expr::Var(_) => ExprType::Var,
+            Expr::Fun(_) => ExprType::Fun,
+            Expr::Pow(_) => ExprType::Pow,
+            Expr::Mul(_) => ExprType::Mul,
+            Expr::Add(_) => ExprType::Add,
+        }
+    }
+
     pub fn add(self, rhs: Expr) -> Expr {
         let mut terms = Vec::new();
 
@@ -184,119 +190,5 @@ impl Ord for Expr {
                 Ordering::Equal
             },
         }
-    }
-}
-
-impl fmt::Display for Num {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Num::Integer(int) => write!(f, "{}", int),
-            Num::Float(float) => write!(f, "{}", float),
-            Num::Rational(num, denom) => write!(f, "{}/{}", num, denom),
-        }
-    }
-}
-
-trait DisplayLeaves: fmt::Debug + DynClone {
-    fn leaves(&self) -> Vec<Box<dyn DisplayLeaves>>;
-}
-
-dyn_clone::clone_trait_object!(DisplayLeaves);
-
-impl DisplayLeaves for Expr {
-    #[allow(clippy::map_clone)]
-    fn leaves(&self) -> Vec<Box<dyn DisplayLeaves>> {
-        match self {
-            Expr::Fun(fun) => fun
-                .args
-                .iter()
-                .map(|e| -> Box<dyn DisplayLeaves> { Box::new(e.clone()) })
-                .collect(),
-            Expr::Pow(pow) => vec![pow.base.clone(), pow.exp.clone()],
-            Expr::Mul(mul) => mul
-                .factors
-                .iter()
-                .map(|e| -> Box<dyn DisplayLeaves> { Box::new(e.clone()) })
-                .collect(),
-            Expr::Add(add) => add
-                .terms
-                .iter()
-                .map(|e| -> Box<dyn DisplayLeaves> { Box::new(e.clone()) })
-                .collect(),
-            _ => vec![],
-        }
-    }
-}
-
-type DisplayQueue = VecDeque<(bool, Box<dyn DisplayLeaves>, Vec<bool>)>;
-
-const GLYPH_MIDDLE_ITEM: &str = "├";
-const GLYPH_LAST_ITEM: &str = "└";
-const GLYPH_ITEM_INDENT: &str = "── ";
-const GLYPH_MIDDLE_SKIP: &str = "│";
-const GLYPH_LAST_SKIP: &str = " ";
-const GLYPH_SKIP_INDENT: &str = "  ";
-
-fn enqueue_leaves<T: DisplayLeaves>(
-    queue: &mut VecDeque<(bool, Box<(dyn DisplayLeaves + '_)>, Vec<bool>)>,
-    parent: &T,
-    spaces: Vec<bool>,
-) {
-    for (i, leaf) in parent.leaves().iter().rev().enumerate() {
-        let last = i == 0;
-        queue.push_front((last, leaf.clone(), spaces.clone()));
-    }
-}
-
-impl fmt::Debug for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::Num(num) => write!(f, "{}{}", color::Fg(color::Yellow), num)?,
-            Expr::Var(v) => write!(f, "{}{}", color::Fg(color::White), v.name)?,
-            Expr::Fun(fun) => write!(f, "{}{}", color::Fg(color::Blue), fun.name)?,
-            Expr::Pow(_) => write!(f, "{}Pow", color::Fg(color::Cyan))?,
-            Expr::Mul(_) => write!(f, "{}Mul", color::Fg(color::Cyan))?,
-            Expr::Add(_) => write!(f, "{}Add", color::Fg(color::Cyan))?,
-        };
-
-        write!(f, "{}", color::Fg(color::Reset))?;
-        writeln!(f)?;
-
-        let mut queue = DisplayQueue::new();
-        enqueue_leaves(&mut queue, self, Vec::new());
-
-        while let Some((last, leaf, spaces)) = queue.pop_front() {
-            let mut prefix = (
-                if last { GLYPH_LAST_ITEM } else { GLYPH_MIDDLE_ITEM },
-                GLYPH_ITEM_INDENT,
-            );
-
-            let rest_prefix = (
-                if last { GLYPH_LAST_SKIP } else { GLYPH_MIDDLE_SKIP },
-                GLYPH_SKIP_INDENT,
-            );
-
-            let root = format!("{:?}", leaf);
-            for line in root.lines() {
-                write!(f, "{}", color::Fg(color::LightBlack))?;
-                for s in spaces.as_slice() {
-                    if *s {
-                        fmt::Display::fmt(GLYPH_LAST_SKIP, f)?;
-                    } else {
-                        fmt::Display::fmt(GLYPH_MIDDLE_SKIP, f)?;
-                    }
-                    fmt::Display::fmt(GLYPH_SKIP_INDENT, f)?;
-                }
-
-                fmt::Display::fmt(prefix.0, f)?;
-                fmt::Display::fmt(prefix.1, f)?;
-                write!(f, "{}", color::Fg(color::Reset))?;
-                fmt::Display::fmt(line, f)?;
-                writeln!(f)?;
-                prefix = rest_prefix;
-            }
-        }
-
-        Ok(())
     }
 }

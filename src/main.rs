@@ -11,7 +11,6 @@ lalrpop_mod!(pub grammar, "/grammar.rs");
 
 #[derive(Clone, Copy, IterEnum, StringifyEnum)]
 pub enum RunMethod {
-    ShowAST,
     Normalize,
 }
 
@@ -82,31 +81,8 @@ fn main() {
                 };
 
                 match opts {
-                    RunMethod::ShowAST => {
-                        // print!("{:?}", ast.expr);
-                    },
                     RunMethod::Normalize => {
-                        use expr::*;
                         print!("{}", ast.expr.normalize());
-                        println!(
-                            "{}",
-                            Expr::Mul(Mul::new(vec![
-                                Expr::Pow(Pow::new(
-                                    Expr::Var(Var::new(String::from("x"))),
-                                    Expr::Num(Num::Integer(3))
-                                )),
-                                Expr::Pow(Pow::new(
-                                    Expr::Var(Var::new(String::from("y"))),
-                                    Expr::Num(Num::Integer(-1)),
-                                )),
-                                Expr::Pow(Pow::new(
-                                    Expr::Var(Var::new(String::from("z"))),
-                                    Expr::Num(Num::Integer(-2)),
-                                )),
-                                Expr::Pow(Pow::new(Expr::Num(Num::Rational(5, 678)), Expr::Num(Num::Integer(-1)),)),
-                                Expr::Num(Num::Rational(123, 4)),
-                            ]))
-                        )
                     },
                 }
             },

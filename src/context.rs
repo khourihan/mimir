@@ -114,12 +114,12 @@ impl Context {
 }
 
 impl Symbol {
-    pub const LN: Symbol = Symbol::raw_fun(1, 0, SymbolFlags::NONE);
-    pub const SIN: Symbol = Symbol::raw_fun(2, 0, SymbolFlags::NONE);
-    pub const COS: Symbol = Symbol::raw_fun(3, 0, SymbolFlags::NONE);
-    pub const SQRT: Symbol = Symbol::raw_fun(4, 0, SymbolFlags::NONE);
-    pub const E: Symbol = Symbol::raw_var(5, 0);
-    pub const PI: Symbol = Symbol::raw_var(6, 0);
+    pub const LN: Symbol = Symbol::raw_fun(0, 0, SymbolFlags::NONE);
+    pub const SIN: Symbol = Symbol::raw_fun(1, 0, SymbolFlags::NONE);
+    pub const COS: Symbol = Symbol::raw_fun(2, 0, SymbolFlags::NONE);
+    pub const SQRT: Symbol = Symbol::raw_fun(3, 0, SymbolFlags::NONE);
+    pub const E: Symbol = Symbol::raw_var(4, 0);
+    pub const PI: Symbol = Symbol::raw_var(5, 0);
 
     #[inline(always)]
     pub const fn raw_var(id: u32, wildcard_level: u8) -> Symbol {

@@ -1,20 +1,33 @@
+use crate::context::{Context, Symbol};
+
 use super::Expr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fun {
-    pub name: String,
+    pub id: Symbol,
     pub args: Vec<Expr>,
 }
 
 impl Fun {
     #[inline]
-    pub fn new(name: String, args: Vec<Expr>) -> Fun {
-        Fun { name, args }
+    pub fn new(id: Symbol, args: Vec<Expr>) -> Fun {
+        Fun { id, args }
     }
 
     #[inline]
-    pub fn new_boxed(name: String, args: Vec<Box<Expr>>) -> Fun {
-        Fun::new(name, args.into_iter().map(|x| *x).collect())
+    pub fn from_name(name: String, args: Vec<Box<Expr>>) -> Fun {
+        let s = Context::get_context_mut().get_symbol(name);
+        Fun::new(s, args.into_iter().map(|x| *x).collect())
+    }
+
+    #[inline]
+    pub fn push(&mut self, arg: Expr) {
+        self.args.push(arg);
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.args.len()
     }
 
     #[inline]

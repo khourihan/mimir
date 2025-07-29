@@ -47,9 +47,9 @@ pub FactorRhs: Box<Expr> = {
 pub Atom: Box<Expr> = {
     Integer => Box::new(Expr::Num(<>)),
     Real => Box::new(Expr::Num(<>)),
-    Var => Box::new(Expr::Var(Var::new(<>))),
+    Var => Box::new(Expr::Var(Var::from_name(<>))),
     "(" <Expr> ")",
-    <name:Var> "[" <args:Comma<Expr>> "]" => Box::new(Expr::Fun(Fun::new_boxed(name, args))),
+    <name:Var> "[" <args:Comma<Expr>> "]" => Box::new(Expr::Fun(Fun::from_name(name, args))),
 };
 
 Integer: Num = r"[0-9]+" => Num::Integer(i32::from_str(<>).unwrap());

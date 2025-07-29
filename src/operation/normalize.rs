@@ -1,6 +1,11 @@
 use std::cmp::Ordering;
 
-use crate::expr::{Add, Expr, Mul, Num, Pow};
+use ordered_float::OrderedFloat;
+
+use crate::{
+    context::Symbol,
+    expr::{Add, Expr, Fun, Mul, Num, Pow, Var},
+};
 
 impl Expr {
     fn cmp_factors(&self, other: &Self) -> Ordering {
@@ -8,7 +13,7 @@ impl Expr {
             (Expr::Num(_), Expr::Num(_)) => Ordering::Equal,
             (Expr::Num(_), _) => Ordering::Greater,
             (_, Expr::Num(_)) => Ordering::Less,
-            (Expr::Var(v1), Expr::Var(v2)) => v1.name.cmp(&v2.name),
+            (Expr::Var(v1), Expr::Var(v2)) => v1.id.cmp(&v2.id),
             (Expr::Pow(p1), Expr::Pow(p2)) => p1.base.cmp(&p2.base),
             (_, Expr::Pow(p2)) => self.cmp(&p2.base).then(Ordering::Less),
             (Expr::Pow(p1), _) => (*p1.base).cmp(other).then(Ordering::Less),
@@ -35,7 +40,7 @@ impl Expr {
             (Expr::Add(_), _) => Ordering::Less,
             (_, Expr::Add(_)) => Ordering::Greater,
             (Expr::Fun(f1), Expr::Fun(f2)) => {
-                let name_cmp = f1.name.cmp(&f2.name);
+                let name_cmp = f1.id.cmp(&f2.id);
                 if name_cmp != Ordering::Equal {
                     return name_cmp;
                 }
@@ -62,7 +67,7 @@ impl Expr {
             (Expr::Num(_), Expr::Num(_)) => Ordering::Equal,
             (Expr::Num(_), _) => Ordering::Greater,
             (_, Expr::Num(_)) => Ordering::Less,
-            (Expr::Var(v1), Expr::Var(v2)) => v1.name.cmp(&v2.name),
+            (Expr::Var(v1), Expr::Var(v2)) => v1.id.cmp(&v2.id),
             (Expr::Pow(p1), Expr::Pow(p2)) => p1.base.cmp(&p2.base).then_with(|| p1.exp.cmp(&p2.exp)),
             (Expr::Mul(m1), Expr::Mul(m2)) => {
                 let len1 = if m1.has_coefficient() {
@@ -118,7 +123,7 @@ impl Expr {
             (_, Expr::Pow(_)) => Ordering::Greater,
             (Expr::Pow(_), _) => Ordering::Less,
             (Expr::Fun(f1), Expr::Fun(f2)) => {
-                let name_cmp = f1.name.cmp(&f2.name);
+                let name_cmp = f1.id.cmp(&f2.id);
                 if name_cmp != Ordering::Equal {
                     return name_cmp;
                 }
@@ -354,11 +359,112 @@ impl Expr {
         None
     }
 
+    fn simplify_exp_ln(&self) -> Option<Expr> {
+        if let Expr::Fun(f) = self {
+            // exp[ln[x]] = x
+            if f.id == Symbol::LN && f.len() == 1 {
+                return Some(f.args[0].clone());
+            }
+        }
+
+        if let Expr::Mul(m) = self {
+            // exp[y ln[x]] = x^y
+            let mut idx = None;
+            let mut expr = None;
+            for (i, a) in m.iter().enumerate() {
+                if let Some(e) = a.simplify_exp_ln() {
+                    if idx.is_some() {
+                        return None;
+                    }
+
+                    idx = Some(i);
+                    expr = Some(e);
+                }
+            }
+
+            if let Some(i) = idx {
+                let mut mul = Mul::default();
+                for (j, a) in m.iter().enumerate() {
+                    if j != i {
+                        mul.push(a.clone());
+                    }
+                }
+
+                return Some(Expr::Pow(Pow::new(expr.unwrap(), Expr::Mul(mul))).normalize());
+            } else {
+                return None;
+            }
+        }
+
+        if let Expr::Add(a) = self {
+            // exp[y + ln[x]] = x exp[y]
+            let mut mul = Mul::default();
+            let mut add = Add::default();
+
+            let mut changed = false;
+            for term in a.iter() {
+                if let Some(e) = term.simplify_exp_ln() {
+                    changed = true;
+                    mul.push(e);
+                } else {
+                    add.push(term.clone());
+                }
+            }
+
+            if changed {
+                let new_exp = Expr::Pow(Pow::new(Expr::Var(Var::new(Symbol::E)), Expr::Add(add)));
+                mul.push(new_exp);
+                return Some(Expr::Mul(mul).normalize());
+            } else {
+                return None;
+            }
+        }
+
+        None
+    }
+
     pub fn normalize(self) -> Expr {
         match self {
             Expr::Num(num) => Expr::Num(num),
             Expr::Var(var) => Expr::Var(var),
-            Expr::Fun(fun) => Expr::Fun(fun),
+            Expr::Fun(fun) => {
+                let id = fun.id;
+                let mut f = Fun::new(id, vec![]);
+
+                for arg in fun {
+                    f.push(arg.normalize());
+                }
+
+                if [Symbol::COS, Symbol::SIN, Symbol::LN].contains(&id) && f.len() == 1 {
+                    let arg = &f.args[0];
+                    if let Expr::Num(n) = arg {
+                        if n.is_zero() && id != Symbol::LN || n.is_one() && id == Symbol::LN {
+                            if id == Symbol::COS {
+                                // cos[0] = 1
+                                return Expr::Num(Num::ONE);
+                            } else if id == Symbol::SIN || id == Symbol::LN {
+                                // sin[0] = 0, ln[1] = 0
+                                return Expr::Num(Num::ZERO);
+                            }
+                        }
+
+                        if let Num::Float(f) = n {
+                            match id {
+                                Symbol::COS => return Expr::Num(Num::Float(OrderedFloat(f.cos()))),
+                                Symbol::SIN => return Expr::Num(Num::Float(OrderedFloat(f.sin()))),
+                                Symbol::LN => return Expr::Num(Num::Float(OrderedFloat(f.ln()))),
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+
+                // TODO: normalize linear and symmetric function arguments
+
+                // TODO: inline defined functions
+
+                Expr::Fun(f)
+            },
             Expr::Pow(pow) => {
                 let base = pow.base.normalize();
                 let exp = pow.exp.normalize();
@@ -377,6 +483,13 @@ impl Expr {
                     } else if e.is_one() {
                         // x^1 = x
                         return base;
+                    } else if let Expr::Var(var) = &base {
+                        // handle e^x where x is a float
+                        if var.id == Symbol::E {
+                            if let Num::Float(f) = e {
+                                return Expr::Num(Num::Float(OrderedFloat(f.exp())));
+                            }
+                        }
                     } else if let Expr::Num(n) = base {
                         // exponentiate numbers
                         let (coeff, new_base, new_exp) = n.pow(e);
@@ -410,6 +523,15 @@ impl Expr {
                             }
 
                             return Expr::Mul(mul).normalize();
+                        }
+                    }
+                }
+
+                if let Expr::Var(var) = &base {
+                    // simplify ln inside exp
+                    if var.id == Symbol::E && exp.contains_symbol(Symbol::LN) {
+                        if let Some(e) = exp.simplify_exp_ln() {
+                            return e;
                         }
                     }
                 }

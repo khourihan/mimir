@@ -1,6 +1,9 @@
 use std::fmt;
 
-use crate::expr::{Mul, Pow};
+use crate::{
+    context::Context,
+    expr::{Mul, Pow},
+};
 
 use super::{Expr, ExprType, Num};
 
@@ -112,10 +115,12 @@ impl Expr {
                 },
             },
             Expr::Var(var) => {
-                lines[ctx.line].push_str(&var.name);
+                let s = Context::get_name(var.id);
+                lines[ctx.line].push_str(&s);
             },
             Expr::Fun(fun) => {
-                lines[ctx.line].push_str(&fun.name);
+                let s = Context::get_name(fun.id);
+                lines[ctx.line].push_str(&s);
                 lines[ctx.line].push('[');
 
                 fun.args[0].fmt_lines(lines, ctx);

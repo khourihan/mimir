@@ -6,12 +6,18 @@ pub use add::Add;
 pub use fun::Fun;
 pub use mul::Mul;
 pub use num::Num;
+pub use pow::Pow;
+pub use var::Var;
+
+use crate::context::Symbol;
 
 mod add;
 mod fmt;
 mod fun;
 mod mul;
 mod num;
+mod pow;
+mod var;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
@@ -31,33 +37,6 @@ pub enum ExprType {
     Pow = 3,
     Mul = 4,
     Add = 5,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Var {
-    pub name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Pow {
-    pub base: Box<Expr>,
-    pub exp: Box<Expr>,
-}
-
-impl Var {
-    pub fn new(name: String) -> Var {
-        Var { name }
-    }
-}
-
-impl Pow {
-    pub fn new(base: Expr, exp: Expr) -> Pow {
-        Pow::new_boxed(Box::new(base), Box::new(exp))
-    }
-
-    pub fn new_boxed(base: Box<Expr>, exp: Box<Expr>) -> Pow {
-        Pow { base, exp }
-    }
 }
 
 impl Expr {
@@ -111,6 +90,45 @@ impl Expr {
     pub fn pow(self, rhs: Expr) -> Expr {
         Expr::Pow(Pow::new(self, rhs))
     }
+
+    pub fn contains_symbol(&self, s: Symbol) -> bool {
+        let mut stack = Vec::with_capacity(16);
+        stack.push(self.clone());
+        while let Some(c) = stack.pop() {
+            match c {
+                Expr::Num(_) => (),
+                Expr::Var(var) => {
+                    if var.id == s {
+                        return true;
+                    }
+                },
+                Expr::Fun(fun) => {
+                    if fun.id == s {
+                        return true;
+                    }
+                    for arg in fun {
+                        stack.push(arg);
+                    }
+                },
+                Expr::Pow(pow) => {
+                    stack.push(*pow.base);
+                    stack.push(*pow.exp);
+                },
+                Expr::Mul(mul) => {
+                    for factor in mul {
+                        stack.push(factor);
+                    }
+                },
+                Expr::Add(add) => {
+                    for term in add {
+                        stack.push(term);
+                    }
+                },
+            }
+        }
+
+        false
+    }
 }
 
 impl PartialOrd for Expr {
@@ -129,7 +147,7 @@ impl Ord for Expr {
             (Expr::Num(n1), Expr::Num(n2)) => n1.cmp(n2),
             (Expr::Num(_), _) => Ordering::Greater,
             (_, Expr::Num(_)) => Ordering::Less,
-            (Expr::Var(v1), Expr::Var(v2)) => v1.name.cmp(&v2.name),
+            (Expr::Var(v1), Expr::Var(v2)) => v1.id.cmp(&v2.id),
             (Expr::Var(_), _) => Ordering::Less,
             (_, Expr::Var(_)) => Ordering::Greater,
             (Expr::Pow(p1), Expr::Pow(p2)) => p1.base.cmp(&p2.base).then_with(|| p1.exp.cmp(&p2.exp)),
@@ -170,7 +188,7 @@ impl Ord for Expr {
             (Expr::Add(_), _) => Ordering::Less,
             (_, Expr::Add(_)) => Ordering::Greater,
             (Expr::Fun(f1), Expr::Fun(f2)) => {
-                let name_cmp = f1.name.cmp(&f2.name);
+                let name_cmp = f1.id.cmp(&f2.id);
                 if name_cmp != Ordering::Equal {
                     return name_cmp;
                 }

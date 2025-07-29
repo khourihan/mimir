@@ -1,9 +1,12 @@
+#![allow(unused)]
+
 use lalrpop_util::lalrpop_mod;
 use mimir_macros::{IterEnum, StringifyEnum};
 use parser::{Ast, ParseError};
 use rustyline::{Config, EditMode, Editor, error::ReadlineError, history::DefaultHistory};
 use termion::{color, cursor, style};
 
+mod context;
 mod expr;
 mod operation;
 mod parser;

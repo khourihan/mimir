@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn test_has_coefficient() {
         let m1 = Mul::new(vec![Expr::Num(Num::Integer(5))]);
-        let m2 = Mul::new(vec![Expr::Var(Var::new(String::from("x")))]);
+        let m2 = Mul::new(vec![Expr::Var(Var::from_name(String::from("x")))]);
 
         assert!(m1.has_coefficient());
         assert!(!m2.has_coefficient());

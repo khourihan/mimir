@@ -78,6 +78,9 @@ impl Ord for Num {
 }
 
 impl Num {
+    pub const ZERO: Num = Num::Integer(0);
+    pub const ONE: Num = Num::Integer(1);
+
     pub fn is_one(&self) -> bool {
         match self {
             Num::Integer(int) => *int == 1,
@@ -115,6 +118,48 @@ impl Num {
             Num::Integer(int) => Num::Integer(int.abs()),
             Num::Float(float) => Num::Float(OrderedFloat(float.abs())),
             Num::Rational(n, d) => Num::Rational(n.abs(), d.abs()),
+        }
+    }
+
+    /// Raises one number to the power of another, returning the resulting coefficient, base, and
+    /// exponent.
+    pub fn pow(&self, other: &Num) -> (Num, Num, Num) {
+        match (self, other) {
+            (Num::Integer(i1), Num::Integer(i2)) => {
+                if i2.is_negative() {
+                    (Num::ONE, Num::Rational(1, i1.pow(i2.unsigned_abs())), Num::ONE)
+                } else {
+                    (Num::ONE, Num::Integer(i1.pow(*i2 as u32)), Num::ONE)
+                }
+            },
+            (Num::Float(f1), Num::Float(f2)) => (Num::ONE, Num::Float(OrderedFloat(f1.powf(**f2))), Num::ONE),
+            (Num::Integer(int), Num::Float(float)) => (
+                Num::ONE,
+                Num::Float(OrderedFloat(OrderedFloat(*int as f32).powf(**float))),
+                Num::ONE,
+            ),
+            (Num::Float(float), Num::Integer(int)) => (Num::ONE, Num::Float(OrderedFloat(float.powi(*int))), Num::ONE),
+            (Num::Float(float), Num::Rational(n, d)) => (
+                Num::ONE,
+                Num::Float(OrderedFloat(float.powf(*n as f32 / *d as f32))),
+                Num::ONE,
+            ),
+            (Num::Rational(n, d), Num::Float(float)) => (
+                Num::ONE,
+                Num::Float(OrderedFloat((*n as f32 / *d as f32).powf(**float))),
+                Num::ONE,
+            ),
+            (Num::Integer(int), Num::Rational(n, d)) => todo!(),
+            (Num::Rational(n, d), Num::Integer(int)) => {
+                if int.is_negative() {
+                    let e = int.unsigned_abs();
+                    (Num::ONE, Num::Rational(d.pow(e), n.pow(e)), Num::ONE)
+                } else {
+                    let e = *int as u32;
+                    (Num::ONE, Num::Rational(n.pow(e), d.pow(e)), Num::ONE)
+                }
+            },
+            (Num::Rational(n1, d1), Num::Rational(n2, d2)) => todo!(),
         }
     }
 }

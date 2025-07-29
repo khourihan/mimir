@@ -154,7 +154,7 @@ impl Expr {
                         let new_exp = n1 + n2;
 
                         if new_exp.is_zero() {
-                            return Some(Expr::Num(Num::Integer(1)));
+                            return Some(Expr::Num(Num::ONE));
                         } else if new_exp.is_one() {
                             return Some(*p2.base.clone());
                         } else {
@@ -167,7 +167,7 @@ impl Expr {
 
                 if let Expr::Num(n) = &new_exp {
                     if n.is_zero() {
-                        return Some(Expr::Num(Num::Integer(1)));
+                        return Some(Expr::Num(Num::ONE));
                     } else if n.is_one() {
                         return Some(*p2.base.clone());
                     }
@@ -179,17 +179,17 @@ impl Expr {
             // x^n * x = x^(n + 1) but don't merge numbers
             if !matches!(other, Expr::Num(_)) && *other == *p1.base {
                 if let Expr::Num(n) = &*p1.exp {
-                    let new_exp = n + &Num::Integer(1);
+                    let new_exp = n + &Num::ONE;
 
                     if new_exp.is_zero() {
-                        return Some(Expr::Num(Num::Integer(1)));
-                    } else if new_exp == Num::Integer(1) {
+                        return Some(Expr::Num(Num::ONE));
+                    } else if new_exp == Num::ONE {
                         return Some(other.clone());
                     } else {
                         return Some(Expr::Pow(Pow::new(other.clone(), Expr::Num(new_exp))));
                     }
                 } else {
-                    let new_exp = Expr::Add(Add::new(vec![Expr::Num(Num::Integer(1)), *p1.exp.clone()])).normalize();
+                    let new_exp = Expr::Add(Add::new(vec![Expr::Num(Num::ONE), *p1.exp.clone()])).normalize();
                     return Some(Expr::Pow(Pow::new(*p1.base.clone(), new_exp)));
                 }
             }
@@ -201,17 +201,17 @@ impl Expr {
         if let Expr::Pow(p) = other {
             if !matches!(self, Expr::Num(_)) && *self == *p.base {
                 if let Expr::Num(n) = &*p.exp {
-                    let new_exp = n + &Num::Integer(1);
+                    let new_exp = n + &Num::ONE;
 
                     if new_exp.is_zero() {
-                        return Some(Expr::Num(Num::Integer(1)));
-                    } else if new_exp == Num::Integer(1) {
+                        return Some(Expr::Num(Num::ONE));
+                    } else if new_exp == Num::ONE {
                         return Some(*p.base.clone());
                     } else {
                         return Some(Expr::Pow(Pow::new(*p.base.clone(), Expr::Num(new_exp))));
                     }
                 } else {
-                    let new_exp = Expr::Add(Add::new(vec![Expr::Num(Num::Integer(1)), *p.exp.clone()])).normalize();
+                    let new_exp = Expr::Add(Add::new(vec![Expr::Num(Num::ONE), *p.exp.clone()])).normalize();
                     return Some(Expr::Pow(Pow::new(*p.base.clone(), new_exp)));
                 }
             }
@@ -266,21 +266,17 @@ impl Expr {
                 };
 
                 if term1.eq(term2) {
-                    let num = if let Expr::Num(n) = &last_term {
-                        n
-                    } else {
-                        &Num::Integer(1)
-                    };
+                    let num = if let Expr::Num(n) = &last_term { n } else { &Num::ONE };
 
                     let new_coeff = if let Expr::Num(n) = &last_term2 {
                         num + n
                     } else {
-                        num + &Num::Integer(1)
+                        num + &Num::ONE
                     };
 
                     let len = m.factors.len();
 
-                    if new_coeff == Num::Integer(1) {
+                    if new_coeff == Num::ONE {
                         assert!(has_coeff);
 
                         if len == 2 {
@@ -310,12 +306,12 @@ impl Expr {
                 }
 
                 let new_coeff = if let Expr::Num(n) = &last_term {
-                    n + &Num::Integer(1)
+                    n + &Num::ONE
                 } else {
                     return None;
                 };
 
-                assert!(new_coeff != Num::Integer(1));
+                assert!(new_coeff != Num::ONE);
 
                 if new_coeff.is_zero() {
                     return Some(Expr::Num(new_coeff));
@@ -335,12 +331,12 @@ impl Expr {
 
             if *self == m.factors[0] {
                 let new_coeff = if let Expr::Num(n) = &last_term {
-                    n + &Num::Integer(1)
+                    n + &Num::ONE
                 } else {
                     return None;
                 };
 
-                assert!(new_coeff != Num::Integer(1));
+                assert!(new_coeff != Num::ONE);
 
                 if new_coeff.is_zero() {
                     return Some(Expr::Num(new_coeff));
@@ -363,7 +359,63 @@ impl Expr {
             Expr::Num(num) => Expr::Num(num),
             Expr::Var(var) => Expr::Var(var),
             Expr::Fun(fun) => Expr::Fun(fun),
-            Expr::Pow(pow) => Expr::Pow(pow),
+            Expr::Pow(pow) => {
+                let base = pow.base.normalize();
+                let exp = pow.exp.normalize();
+
+                // 1^x = 1
+                if let Expr::Num(b) = &base {
+                    if b.is_one() {
+                        return Expr::Num(Num::ONE);
+                    }
+                }
+
+                if let Expr::Num(e) = &exp {
+                    if e.is_zero() {
+                        // x^0 = 1
+                        return Expr::Num(Num::ONE);
+                    } else if e.is_one() {
+                        // x^1 = x
+                        return base;
+                    } else if let Expr::Num(n) = base {
+                        // exponentiate numbers
+                        let (coeff, new_base, new_exp) = n.pow(e);
+
+                        if !coeff.is_one() {
+                            let m = Expr::Mul(Mul::new(vec![
+                                Expr::Num(coeff),
+                                Expr::Pow(Pow::new(Expr::Num(new_base), Expr::Num(new_exp))),
+                            ]));
+
+                            return m.normalize();
+                        }
+
+                        if new_exp.is_one() {
+                            return Expr::Num(new_base);
+                        }
+
+                        return Expr::Pow(Pow::new(Expr::Num(new_base), Expr::Num(new_exp)));
+                    } else if let Expr::Pow(p_base) = &base {
+                        if let Num::Integer(_) = e {
+                            // (x^y)^n = x^(y*n)
+                            let m = Expr::Mul(Mul::new(vec![*p_base.exp.clone(), exp])).normalize();
+                            return Expr::Pow(Pow::new(*p_base.base.clone(), m)).normalize();
+                        }
+                    } else if let Expr::Mul(m) = &base {
+                        if let Num::Integer(_) = e {
+                            // (x*y)^n = x^n * y^n
+                            let mut mul = Mul::default();
+                            for factor in m.iter() {
+                                mul.push(Expr::Pow(Pow::new(factor.clone(), exp.clone())));
+                            }
+
+                            return Expr::Mul(mul).normalize();
+                        }
+                    }
+                }
+
+                Expr::Pow(Pow::new(base, exp))
+            },
             Expr::Mul(mul) => {
                 let mut is_zero = false;
                 let mut factors = Vec::new();
@@ -403,7 +455,7 @@ impl Expr {
                 }
 
                 if is_zero {
-                    return Expr::Num(Num::Integer(0));
+                    return Expr::Num(Num::ZERO);
                 }
 
                 factors.sort_by(|a, b| a.cmp_factors(b));
@@ -463,7 +515,7 @@ impl Expr {
                         }
                     }
                 } else {
-                    Expr::Num(Num::Integer(1))
+                    Expr::Num(Num::ONE)
                 }
             },
             Expr::Add(add) => {
@@ -536,7 +588,7 @@ impl Expr {
                         Expr::Add(out)
                     }
                 } else {
-                    Expr::Num(Num::Integer(0))
+                    Expr::Num(Num::ZERO)
                 }
             },
         }

@@ -360,6 +360,12 @@ impl Expr {
                                 continue;
                             }
                         }
+                    } else if let Expr::Num(n) = term {
+                        if n.is_negative() {
+                            lines[ctx.line].push_str(" - ");
+                            Expr::Num(n.abs()).fmt_lines(lines, ctx);
+                            continue;
+                        }
                     }
 
                     lines[ctx.line].push_str(" + ");

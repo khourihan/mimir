@@ -30,6 +30,7 @@ pub Term: Box<Expr> = {
     <left:Term> "*" <right:Factor> => Box::new(left.mul(*right)),
     <left:Term> "/" <right:Factor> => Box::new(left.mul(right.pow(Expr::Num(Num::Integer(-1))))),
     <left:Term> <right:Atom> => Box::new(left.mul(*right)),
+    <left:Term> <base:Atom> "^" <exp:FactorRhs> => Box::new(left.mul(base.pow(*exp))),
     Factor
 };
 

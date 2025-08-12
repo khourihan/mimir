@@ -31,12 +31,12 @@ impl Fun {
     }
 
     #[inline]
-    pub fn iter(&self) -> std::slice::Iter<Expr> {
+    pub fn iter(&'_ self) -> std::slice::Iter<'_, Expr> {
         self.args.iter()
     }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<Expr> {
+    pub fn iter_mut(&'_ mut self) -> std::slice::IterMut<'_, Expr> {
         self.args.iter_mut()
     }
 }

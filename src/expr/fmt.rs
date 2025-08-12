@@ -186,6 +186,11 @@ impl Expr {
                 }
 
                 fn fmt_factors(m: &[Expr], lines: &mut Vec<String>, ctx: &mut PrintContext) {
+                    if m.len() == 1 {
+                        m[0].fmt_lines(lines, ctx);
+                        return;
+                    }
+
                     let factors = if m.iter().any(|e| matches!(e, Expr::Num(_))) {
                         let coeff = m.last().unwrap();
                         let Expr::Num(n) = coeff else { unreachable!() };
@@ -360,12 +365,12 @@ impl Expr {
                                 continue;
                             }
                         }
-                    } else if let Expr::Num(n) = term {
-                        if n.is_negative() {
-                            lines[ctx.line].push_str(" - ");
-                            Expr::Num(n.abs()).fmt_lines(lines, ctx);
-                            continue;
-                        }
+                    } else if let Expr::Num(n) = term
+                        && n.is_negative()
+                    {
+                        lines[ctx.line].push_str(" - ");
+                        Expr::Num(n.abs()).fmt_lines(lines, ctx);
+                        continue;
                     }
 
                     lines[ctx.line].push_str(" + ");

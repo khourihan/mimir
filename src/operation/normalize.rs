@@ -154,17 +154,17 @@ impl Expr {
                     return None;
                 }
 
-                if let Expr::Num(n1) = &*p1.exp {
-                    if let Expr::Num(n2) = &*p2.exp {
-                        let new_exp = n1 + n2;
+                if let Expr::Num(n1) = &*p1.exp
+                    && let Expr::Num(n2) = &*p2.exp
+                {
+                    let new_exp = n1 + n2;
 
-                        if new_exp.is_zero() {
-                            return Some(Expr::Num(Num::ONE));
-                        } else if new_exp.is_one() {
-                            return Some(*p2.base.clone());
-                        } else {
-                            return Some(Expr::Pow(Pow::new(*p2.base.clone(), Expr::Num(new_exp))));
-                        }
+                    if new_exp.is_zero() {
+                        return Some(Expr::Num(Num::ONE));
+                    } else if new_exp.is_one() {
+                        return Some(*p2.base.clone());
+                    } else {
+                        return Some(Expr::Pow(Pow::new(*p2.base.clone(), Expr::Num(new_exp))));
                     }
                 }
 
@@ -470,10 +470,10 @@ impl Expr {
                 let exp = pow.exp.normalize();
 
                 // 1^x = 1
-                if let Expr::Num(b) = &base {
-                    if b.is_one() {
-                        return Expr::Num(Num::ONE);
-                    }
+                if let Expr::Num(b) = &base
+                    && b.is_one()
+                {
+                    return Expr::Num(Num::ONE);
                 }
 
                 if let Expr::Num(e) = &exp {
@@ -485,10 +485,10 @@ impl Expr {
                         return base;
                     } else if let Expr::Var(var) = &base {
                         // handle e^x where x is a float
-                        if var.id == Symbol::E {
-                            if let Num::Float(f) = e {
-                                return Expr::Num(Num::Float(OrderedFloat(f.exp())));
-                            }
+                        if var.id == Symbol::E
+                            && let Num::Float(f) = e
+                        {
+                            return Expr::Num(Num::Float(OrderedFloat(f.exp())));
                         }
                     } else if let Expr::Num(n) = base {
                         // exponentiate numbers
@@ -514,25 +514,26 @@ impl Expr {
                             let m = Expr::Mul(Mul::new(vec![*p_base.exp.clone(), exp])).normalize();
                             return Expr::Pow(Pow::new(*p_base.base.clone(), m)).normalize();
                         }
-                    } else if let Expr::Mul(m) = &base {
-                        if let Num::Integer(_) = e {
-                            // (x*y)^n = x^n * y^n
-                            let mut mul = Mul::default();
-                            for factor in m.iter() {
-                                mul.push(Expr::Pow(Pow::new(factor.clone(), exp.clone())));
-                            }
-
-                            return Expr::Mul(mul).normalize();
+                    } else if let Expr::Mul(m) = &base
+                        && let Num::Integer(_) = e
+                    {
+                        // (x*y)^n = x^n * y^n
+                        let mut mul = Mul::default();
+                        for factor in m.iter() {
+                            mul.push(Expr::Pow(Pow::new(factor.clone(), exp.clone())));
                         }
+
+                        return Expr::Mul(mul).normalize();
                     }
                 }
 
                 if let Expr::Var(var) = &base {
                     // simplify ln inside exp
-                    if var.id == Symbol::E && exp.contains_symbol(Symbol::LN) {
-                        if let Some(e) = exp.simplify_exp_ln() {
-                            return e;
-                        }
+                    if var.id == Symbol::E
+                        && exp.contains_symbol(Symbol::LN)
+                        && let Some(e) = exp.simplify_exp_ln()
+                    {
+                        return e;
                     }
                 }
 
@@ -648,19 +649,19 @@ impl Expr {
 
                     if let Expr::Add(a) = nx {
                         for c in a.terms {
-                            if let Expr::Num(n) = &c {
-                                if n.is_zero() {
-                                    continue;
-                                }
+                            if let Expr::Num(n) = &c
+                                && n.is_zero()
+                            {
+                                continue;
                             }
 
                             terms.push(c);
                         }
                     } else {
-                        if let Expr::Num(n) = &nx {
-                            if n.is_zero() {
-                                continue;
-                            }
+                        if let Expr::Num(n) = &nx
+                            && n.is_zero()
+                        {
+                            continue;
                         }
 
                         terms.push(nx);

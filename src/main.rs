@@ -63,12 +63,12 @@ fn main() {
 
                 let Ok(opts) = select_method(&mut stdin, 0) else { break };
 
-                if let Err(err) = input.parse::<Ast>() {
-                    if let ParseError::UnexpectedEof { .. } = err {
-                        input.insert(0, '\n');
-                        err.fmt(&input, line - 1);
-                        continue;
-                    };
+                if let Err(err) = input.parse::<Ast>()
+                    && let ParseError::UnexpectedEof { .. } = err
+                {
+                    input.insert(0, '\n');
+                    err.fmt(&input, line - 1);
+                    continue;
                 };
 
                 let ast: Ast = match input.parse() {

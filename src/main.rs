@@ -1,16 +1,9 @@
 #![allow(unused)]
 
-use lalrpop_util::lalrpop_mod;
+use mimir_core::*;
 use mimir_macros::{IterEnum, StringifyEnum};
-use parser::{Ast, ParseError};
 use rustyline::{Config, EditMode, Editor, error::ReadlineError, history::DefaultHistory};
 use termion::{color, cursor, style};
-
-mod context;
-mod expr;
-mod operation;
-mod parser;
-lalrpop_mod!(pub grammar, "/grammar.rs");
 
 #[derive(Clone, Copy, IterEnum, StringifyEnum)]
 pub enum RunMethod {
@@ -63,7 +56,7 @@ fn main() {
 
                 let Ok(opts) = select_method(&mut stdin, 0) else { break };
 
-                if let Err(err) = input.parse::<Ast>()
+                if let Err(err) = input.parse::<Expr>()
                     && let ParseError::UnexpectedEof { .. } = err
                 {
                     input.insert(0, '\n');
@@ -71,10 +64,10 @@ fn main() {
                     continue;
                 };
 
-                let ast: Ast = match input.parse() {
-                    Ok(ast) => {
+                let expr: Expr = match input.parse() {
+                    Ok(expr) => {
                         line += 1;
-                        ast
+                        expr
                     },
                     Err(err) => {
                         input.insert(0, '\n');
@@ -85,7 +78,7 @@ fn main() {
 
                 match opts {
                     RunMethod::Normalize => {
-                        print!("{}", ast.expr.normalize());
+                        print!("{}", expr.normalize());
                     },
                 }
             },

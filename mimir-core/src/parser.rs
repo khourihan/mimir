@@ -193,12 +193,7 @@ impl ParseError {
     }
 }
 
-#[allow(clippy::vec_box)]
-pub struct Ast {
-    pub expr: Expr,
-}
-
-impl FromStr for Ast {
+impl FromStr for Expr {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -215,6 +210,6 @@ impl FromStr for Ast {
             ));
         }
 
-        Ok(Ast { expr: *expr })
+        Ok(*expr)
     }
 }

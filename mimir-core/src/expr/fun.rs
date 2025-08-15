@@ -31,6 +31,11 @@ impl Fun {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.args.is_empty()
+    }
+
+    #[inline]
     pub fn iter(&'_ self) -> std::slice::Iter<'_, Expr> {
         self.args.iter()
     }

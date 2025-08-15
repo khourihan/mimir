@@ -1,0 +1,17 @@
+[package]
+name = "mimir-core"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+thiserror.workspace = true
+once_cell.workspace = true
+termion.workspace = true
+dyn-clone = "1.0.19"
+ordered-float = "5.0.0"
+bitflags = "2.9.1"
+lalrpop-util = { version = "0.22.2", features = ["lexer", "unicode"] }
+
+[build-dependencies]
+lalrpop = "0.22.2"

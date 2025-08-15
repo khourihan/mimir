@@ -1,12 +1,12 @@
 #![allow(clippy::vec_box)]
-
-use std::cmp::Ordering;
+#![allow(clippy::should_implement_trait)]
 
 pub use add::Add;
 pub use fun::Fun;
 pub use mul::Mul;
 pub use num::Num;
 pub use pow::Pow;
+use std::cmp::Ordering;
 pub use var::Var;
 
 use crate::context::Symbol;

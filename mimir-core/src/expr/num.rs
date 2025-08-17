@@ -3,11 +3,13 @@ use std::ops;
 
 use ordered_float::OrderedFloat;
 
+use crate::Integer;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Num {
-    Integer(i32),
+    Integer(Integer),
     Float(OrderedFloat<f32>),
-    Rational(i32, i32),
+    Rational(Integer, Integer),
 }
 
 impl ops::Add for &Num {
@@ -19,13 +21,13 @@ impl ops::Add for &Num {
             (Num::Float(f1), Num::Float(f2)) => Num::Float(f1 + f2),
             (Num::Rational(r1n, r1d), Num::Rational(r2n, r2d)) => Num::Rational(r1n * r2d + r2n * r1d, r1d * r2d),
             (Num::Integer(int), Num::Float(float)) | (Num::Float(float), Num::Integer(int)) => {
-                Num::Float(float + OrderedFloat(*int as f32))
+                Num::Float(float + OrderedFloat(int.to_f64() as f32))
             },
             (Num::Integer(int), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Integer(int)) => {
-                Num::Rational(int * rd + rn, *rd)
+                Num::Rational(int * rd + rn, rd.clone())
             },
             (Num::Float(float), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Float(float)) => {
-                Num::Float(float + OrderedFloat(*rn as f32 / *rd as f32))
+                Num::Float(float + OrderedFloat(rn.to_f64() as f32 / rd.to_f64() as f32))
             },
         }
     }
@@ -40,13 +42,13 @@ impl ops::Mul for &Num {
             (Num::Float(f1), Num::Float(f2)) => Num::Float(f1 * f2),
             (Num::Rational(r1n, r1d), Num::Rational(r2n, r2d)) => Num::Rational(r1n * r2n, r1d * r2d),
             (Num::Integer(int), Num::Float(float)) | (Num::Float(float), Num::Integer(int)) => {
-                Num::Float(float * OrderedFloat(*int as f32))
+                Num::Float(float * OrderedFloat(int.to_f64() as f32))
             },
             (Num::Integer(int), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Integer(int)) => {
-                Num::Rational(rn * int, *rd)
+                Num::Rational(rn * int, rd.clone())
             },
             (Num::Float(float), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Float(float)) => {
-                Num::Float(float * OrderedFloat(*rn as f32 / *rd as f32))
+                Num::Float(float * OrderedFloat(rn.to_f64() as f32 / rd.to_f64() as f32))
             },
         }
     }
@@ -65,21 +67,21 @@ impl Ord for Num {
             (Num::Float(f1), Num::Float(f2)) => f1.cmp(f2),
             (Num::Rational(r1n, r1d), Num::Rational(r2n, r2d)) => (r1n * r2d).cmp(&(r2n * r1d)),
             (Num::Integer(int), Num::Float(float)) | (Num::Float(float), Num::Integer(int)) => {
-                OrderedFloat(*int as f32).cmp(float)
+                OrderedFloat(int.to_f64() as f32).cmp(float)
             },
             (Num::Integer(int), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Integer(int)) => {
                 (int * rd).cmp(rn)
             },
             (Num::Float(float), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Float(float)) => {
-                (float * OrderedFloat(*rd as f32)).cmp(&OrderedFloat(*rn as f32))
+                (float * OrderedFloat(rd.to_f64() as f32)).cmp(&OrderedFloat(rn.to_f64() as f32))
             },
         }
     }
 }
 
 impl Num {
-    pub const ZERO: Num = Num::Integer(0);
-    pub const ONE: Num = Num::Integer(1);
+    pub const ZERO: Num = Num::Integer(Integer::zero());
+    pub const ONE: Num = Num::Integer(Integer::one());
 
     pub fn is_one(&self) -> bool {
         match self {
@@ -127,35 +129,45 @@ impl Num {
         match (self, other) {
             (Num::Integer(i1), Num::Integer(i2)) => {
                 if i2.is_negative() {
-                    (Num::ONE, Num::Rational(1, i1.pow(i2.unsigned_abs())), Num::ONE)
+                    (
+                        Num::ONE,
+                        Num::Rational(Integer::one(), i1.pow(i2.abs().to_u32().unwrap())),
+                        Num::ONE,
+                    )
                 } else {
-                    (Num::ONE, Num::Integer(i1.pow(*i2 as u32)), Num::ONE)
+                    (Num::ONE, Num::Integer(i1.pow(i2.to_u32().unwrap())), Num::ONE)
                 }
             },
             (Num::Float(f1), Num::Float(f2)) => (Num::ONE, Num::Float(OrderedFloat(f1.powf(**f2))), Num::ONE),
             (Num::Integer(int), Num::Float(float)) => (
                 Num::ONE,
-                Num::Float(OrderedFloat(OrderedFloat(*int as f32).powf(**float))),
+                Num::Float(OrderedFloat(OrderedFloat(int.to_f64() as f32).powf(**float))),
                 Num::ONE,
             ),
-            (Num::Float(float), Num::Integer(int)) => (Num::ONE, Num::Float(OrderedFloat(float.powi(*int))), Num::ONE),
+            (Num::Float(float), Num::Integer(int)) => (
+                Num::ONE,
+                Num::Float(OrderedFloat(
+                    float.powi(int.to_i64().and_then(|x| x.try_into().ok()).unwrap()),
+                )),
+                Num::ONE,
+            ),
             (Num::Float(float), Num::Rational(n, d)) => (
                 Num::ONE,
-                Num::Float(OrderedFloat(float.powf(*n as f32 / *d as f32))),
+                Num::Float(OrderedFloat(float.powf(n.to_f64() as f32 / d.to_f64() as f32))),
                 Num::ONE,
             ),
             (Num::Rational(n, d), Num::Float(float)) => (
                 Num::ONE,
-                Num::Float(OrderedFloat((*n as f32 / *d as f32).powf(**float))),
+                Num::Float(OrderedFloat((n.to_f64() as f32 / d.to_f64() as f32).powf(**float))),
                 Num::ONE,
             ),
             (Num::Integer(int), Num::Rational(n, d)) => todo!(),
             (Num::Rational(n, d), Num::Integer(int)) => {
                 if int.is_negative() {
-                    let e = int.unsigned_abs();
+                    let e = int.abs().to_u32().unwrap();
                     (Num::ONE, Num::Rational(d.pow(e), n.pow(e)), Num::ONE)
                 } else {
-                    let e = *int as u32;
+                    let e = int.to_u32().unwrap();
                     (Num::ONE, Num::Rational(n.pow(e), d.pow(e)), Num::ONE)
                 }
             },

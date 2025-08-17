@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 mod context;
+mod domain;
 mod expr;
 mod operation;
 mod parser;
@@ -12,5 +13,6 @@ lalrpop_util::lalrpop_mod!(
 );
 
 pub use context::*;
+pub use domain::*;
 pub use expr::*;
 pub use parser::ParseError;

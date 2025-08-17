@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use ordered_float::OrderedFloat;
 
 use crate::{
+    Integer,
     context::Symbol,
     expr::{Add, Expr, Fun, Mul, Num, Pow, Var},
 };
@@ -235,7 +236,10 @@ impl Expr {
 
         // x * x = x^2
         if self == other {
-            return Some(Expr::Pow(Pow::new(self.clone(), Expr::Num(Num::Integer(2)))));
+            return Some(Expr::Pow(Pow::new(
+                self.clone(),
+                Expr::Num(Num::Integer(Integer::Natural(2))),
+            )));
         }
 
         None
@@ -353,7 +357,10 @@ impl Expr {
                 return Some(Expr::Mul(mc));
             }
         } else if self == other {
-            return Some(Expr::Mul(Mul::new(vec![self.clone(), Expr::Num(Num::Integer(2))])));
+            return Some(Expr::Mul(Mul::new(vec![
+                self.clone(),
+                Expr::Num(Num::Integer(Integer::Natural(2))),
+            ])));
         };
 
         None

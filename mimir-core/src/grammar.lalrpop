@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::{expr::{Expr, Num, Var, Fun, Pow, Mul, Add}, parser::TermOp};
+use crate::{Integer, expr::{Expr, Num, Var, Fun, Pow, Mul, Add}, parser::TermOp};
 use lalrpop_util::ErrorRecovery;
 use ordered_float::OrderedFloat;
 
@@ -13,7 +13,7 @@ pub Expr: Box<Expr> = {
             let terms = std::iter::once(t)
                 .chain(ts.into_iter().map(|t| match t {
                     TermOp::Add(expr) => expr,
-                    TermOp::Sub(expr) => Box::new(expr.mul(Expr::Num(Num::Integer(-1)))),
+                    TermOp::Sub(expr) => Box::new(expr.mul(Expr::Num(Num::Integer(Integer::Natural(-1))))),
                 }))
                 .collect();
             Box::new(Expr::Add(Add::new_boxed(terms)))
@@ -28,7 +28,7 @@ pub TermOp: TermOp = {
 
 pub Term: Box<Expr> = {
     <left:Term> "*" <right:Factor> => Box::new(left.mul(*right)),
-    <left:Term> "/" <right:Factor> => Box::new(left.mul(right.pow(Expr::Num(Num::Integer(-1))))),
+    <left:Term> "/" <right:Factor> => Box::new(left.mul(right.pow(Expr::Num(Num::Integer(Integer::Natural(-1)))))),
     <left:Term> <right:Atom> => Box::new(left.mul(*right)),
     <left:Term> <base:Atom> "^" <exp:FactorRhs> => Box::new(left.mul(base.pow(*exp))),
     Factor
@@ -36,12 +36,12 @@ pub Term: Box<Expr> = {
 
 pub Factor: Box<Expr> = {
     <left:Atom> "^" <right:FactorRhs> => Box::new(Expr::Pow(Pow::new_boxed(left, right))),
-    "-" <expr:Factor> => Box::new(expr.mul(Expr::Num(Num::Integer(-1)))),
+    "-" <expr:Factor> => Box::new(expr.mul(Expr::Num(Num::Integer(Integer::Natural(-1))))),
     Atom,
 };
 
 pub FactorRhs: Box<Expr> = {
-    "-" <expr:Atom> => Box::new(expr.mul(Expr::Num(Num::Integer(-1)))),
+    "-" <expr:Atom> => Box::new(expr.mul(Expr::Num(Num::Integer(Integer::Natural(-1))))),
     Atom,
 };
 
@@ -53,7 +53,7 @@ pub Atom: Box<Expr> = {
     <name:Var> "[" <args:Comma<Expr>> "]" => Box::new(Expr::Fun(Fun::from_name(name, args))),
 };
 
-Integer: Num = r"[0-9]+" => Num::Integer(i32::from_str(<>).unwrap());
+Integer: Num = r"[0-9]+" => Num::Integer(Integer::from_str(<>).unwrap());
 Real: Num = r"[0-9]+\.[0-9]*|[+-]?\.[0-9]+" => Num::Float(OrderedFloat(f32::from_str(<>).unwrap()));
 Var: String = r"[a-zA-Z][a-zA-Z0-9_]*" => String::from(<>);
 

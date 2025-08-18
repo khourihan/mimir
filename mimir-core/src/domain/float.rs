@@ -6,7 +6,7 @@ use std::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{EuclideanDomain, Field, Integer, InternalOrdering, Ring};
+use crate::{EuclideanDomain, Field, Integer, InternalOrdering, Rational, Ring};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FloatField<T> {

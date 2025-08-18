@@ -1,9 +1,11 @@
 use std::hash::Hash;
 
+mod complex;
 mod float;
 mod integer;
 mod rational;
 
+pub use complex::*;
 pub use float::*;
 pub use integer::*;
 pub use rational::*;

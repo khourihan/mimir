@@ -3,8 +3,8 @@ use rug::{Complete, Integer as BigInteger, ops::Pow};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, Sub, SubAssign};
 use std::{cmp::Ordering, fmt::Display, str::FromStr};
 
+use crate::InternalOrdering;
 use crate::domain::{EuclideanDomain, Ring};
-
 /// The integer ring.
 pub type Z = IntegerRing;
 /// The integer ring.
@@ -30,6 +30,12 @@ pub enum Integer {
     Natural(i64),
     Double(i128),
     Large(BigInteger),
+}
+
+impl InternalOrdering for Integer {
+    fn internal_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        Ord::cmp(self, other)
+    }
 }
 
 macro_rules! cast_integer {

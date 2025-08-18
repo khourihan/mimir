@@ -1,12 +1,16 @@
 use std::hash::Hash;
 
+mod float;
 mod integer;
+mod rational;
 
+pub use float::*;
 pub use integer::*;
+pub use rational::*;
 
 /// A set with two binary operations, addition and multiplicative.
 pub trait Ring: Clone + PartialEq + Eq + Hash {
-    type Element: Clone + PartialEq + Eq + Hash;
+    type Element: InternalOrdering + Clone + PartialEq + Eq + Hash;
 
     /// Computes `a + b`.
     fn add(&self, a: &Self::Element, b: &Self::Element) -> Self::Element;
@@ -88,8 +92,76 @@ pub trait Field: EuclideanDomain {
     fn div(&self, a: &Self::Element, b: &Self::Element) -> Self::Element;
 
     /// Performs `a /= b`.
-    fn div_assign(&self, a: &mut Self::Element, b: &Self::Element) -> Self::Element;
+    fn div_assign(&self, a: &mut Self::Element, b: &Self::Element);
 
     /// Computes `1 / a`, or the multiplicative inverse of `a`.
     fn inv(&self, a: &Self::Element) -> Self::Element;
 }
+
+/// A ring that can be upgraded to a field.
+pub trait UpgradeToField: Ring {
+    type Upgraded: Field;
+
+    /// Upgrade this ring to a field.
+    fn upgrade(self) -> Self::Upgraded;
+
+    /// Upgrade an element of this ring to an element of the upgraded field.
+    fn upgrade_element(&self, element: <Self as Ring>::Element) -> <Self::Upgraded as Ring>::Element;
+}
+
+impl<T: Field> UpgradeToField for T {
+    type Upgraded = Self;
+
+    fn upgrade(self) -> Self::Upgraded {
+        self
+    }
+
+    fn upgrade_element(&self, element: <Self as Ring>::Element) -> <Self::Upgraded as Ring>::Element {
+        element
+    }
+}
+
+/// Compares elements within a ring.
+pub trait InternalOrdering {
+    fn internal_cmp(&self, other: &Self) -> std::cmp::Ordering;
+}
+
+macro_rules! impl_internal_ordering {
+    ($($t:ty),*) => {
+        $(
+            impl InternalOrdering for $t {
+                fn internal_cmp(&self, other: &Self) -> std::cmp::Ordering {
+                    self.cmp(other)
+                }
+            }
+        )*
+    }
+}
+
+impl_internal_ordering!(u8, u64);
+
+macro_rules! impl_internal_ordering_range {
+    ($($t:ty),*) => {
+        $(
+            impl<T: InternalOrdering> InternalOrdering for $t {
+                fn internal_cmp(&self, other: &Self) -> std::cmp::Ordering {
+                    match self.len().cmp(&other.len()) {
+                        std::cmp::Ordering::Equal => (),
+                        ord => return ord,
+                    }
+
+                    for (i, j) in self.iter().zip(other) {
+                        match i.internal_cmp(&j) {
+                            std::cmp::Ordering::Equal => (),
+                            ord => return ord,
+                        }
+                    }
+
+                    std::cmp::Ordering::Equal
+                }
+            }
+        )*
+    }
+}
+
+impl_internal_ordering_range!([T], Vec<T>);

@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use std::{fmt::Debug, hash::Hash};
 
 mod complex;
 mod float;
@@ -11,8 +11,8 @@ pub use integer::*;
 pub use rational::*;
 
 /// A set with two binary operations, addition and multiplicative.
-pub trait Ring: Clone + PartialEq + Eq + Hash {
-    type Element: InternalOrdering + Clone + PartialEq + Eq + Hash;
+pub trait Ring: Clone + PartialEq + Eq + Hash + Debug {
+    type Element: InternalOrdering + Clone + PartialEq + Eq + Hash + Debug;
 
     /// Computes `a + b`.
     fn add(&self, a: &Self::Element, b: &Self::Element) -> Self::Element;

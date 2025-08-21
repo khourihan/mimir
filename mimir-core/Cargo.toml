@@ -13,6 +13,7 @@ ordered-float = "5.0.0"
 bitflags = "2.9.1"
 lalrpop-util = { version = "0.22.2", features = ["lexer", "unicode"] }
 rug = "1.27.0"
+itertools = "0.14.0"
 
 [build-dependencies]
 lalrpop = "0.22.2"

@@ -4,6 +4,7 @@ use std::{
     hash::Hash,
     marker::PhantomData,
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+    str::FromStr,
 };
 
 use crate::{EuclideanDomain, Field, Integer, InternalOrdering, Rational, Ring};
@@ -171,8 +172,6 @@ pub trait NumericalFloatLike:
     PartialEq
     + Clone
     + Debug
-    + LowerExp
-    + Display
     + Neg<Output = Self>
     + Add<Self, Output = Self>
     + Sub<Self, Output = Self>
@@ -218,6 +217,8 @@ pub trait SingleFloat: NumericalFloatLike {
     fn is_zero(&self) -> bool;
 
     fn is_one(&self) -> bool;
+
+    fn is_negative_one(&self) -> bool;
 
     fn is_finite(&self) -> bool;
 
@@ -286,11 +287,26 @@ pub trait Real: NumericalFloatLike {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct F64(f64);
+pub struct F64(pub f64);
 
 impl F64 {
     pub fn into_inner(self) -> f64 {
         self.0
+    }
+
+    #[inline]
+    pub fn is_negative(&self) -> bool {
+        self.0.is_sign_negative()
+    }
+
+    #[inline]
+    pub fn is_positive(&self) -> bool {
+        self.0.is_sign_positive()
+    }
+
+    #[inline]
+    pub fn abs(self) -> Self {
+        F64(self.0.abs())
     }
 }
 
@@ -409,6 +425,11 @@ impl SingleFloat for F64 {
     #[inline(always)]
     fn is_one(&self) -> bool {
         self.0 == 1.0
+    }
+
+    #[inline(always)]
+    fn is_negative_one(&self) -> bool {
+        self.0 == -1.0
     }
 
     #[inline(always)]
@@ -552,6 +573,15 @@ impl Real for F64 {
     #[inline(always)]
     fn powf(&self, e: &Self) -> Self {
         self.0.powf(e.0).into()
+    }
+}
+
+impl FromStr for F64 {
+    type Err = <f64 as FromStr>::Err;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        f64::from_str(s).map(|x| x.into())
     }
 }
 

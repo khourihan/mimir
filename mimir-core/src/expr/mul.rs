@@ -47,7 +47,7 @@ impl IntoIterator for Mul {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Integer,
+        Complex, Integer, Rational,
         expr::{Expr, Num, Var},
     };
 
@@ -55,7 +55,10 @@ mod tests {
 
     #[test]
     fn test_has_coefficient() {
-        let m1 = Mul::new(vec![Expr::Num(Num::Integer(Integer::Natural(5)))]);
+        let m1 = Mul::new(vec![Expr::Num(Num::Rational(Complex::new(
+            Rational::from(5),
+            Rational::from(0),
+        )))]);
         let m2 = Mul::new(vec![Expr::Var(Var::from_name(String::from("x")))]);
 
         assert!(m1.has_coefficient());

@@ -1,6 +1,7 @@
 use std::fmt;
 
 use crate::{
+    Rational, SingleFloat,
     context::Context,
     expr::{Mul, Pow},
 };
@@ -40,77 +41,60 @@ impl Expr {
 
         match self {
             Expr::Num(num) => match num {
-                Num::Integer(int) => {
-                    let s = int.to_string();
-                    lines[ctx.line].push_str(&s);
-                },
-                Num::Float(float) => {
-                    let s = float.to_string();
-                    lines[ctx.line].push_str(&s);
-                },
-                Num::Rational(n, d) => {
-                    let sn = n.to_string();
-                    let sd = d.to_string();
-
-                    if !ctx.in_exp {
-                        let len = sn.len().max(sd.len());
-                        let n_bigger = sn.len() == len;
-
-                        let prev_col = lines[ctx.line].len();
-                        ctx.line += 1;
-                        ctx.depth += 1;
-
-                        let line_len = if let Some(line) = lines.get(ctx.line) {
-                            if ctx.depth == ctx.depths[ctx.line] {
-                                line.len()
-                            } else {
-                                ctx.added_above += 1;
-                                lines.insert(ctx.line, String::new());
-                                ctx.depths.insert(ctx.line, ctx.depth);
-                                0
-                            }
+                Num::Rational(r) => {
+                    if r.im.is_zero() {
+                        if r.re.denominator.is_one() {
+                            let s = r.re.numerator.to_string();
+                            lines[ctx.line].push_str(&s);
                         } else {
-                            ctx.added_above += 1;
-                            lines.insert(ctx.line, String::new());
-                            ctx.depths.insert(ctx.line, ctx.depth);
-                            0
-                        };
-
-                        let indent = if n_bigger {
-                            prev_col - line_len
+                            fmt_rational(&r.re, lines, ctx);
+                        }
+                    } else if r.re.is_zero() {
+                        if r.im.denominator.is_one() {
+                            let s = r.im.numerator.to_string();
+                            lines[ctx.line].push_str(&s);
                         } else {
-                            prev_col - line_len + (sd.len() - sn.len()) / 2
-                        };
+                            fmt_rational(&r.im, lines, ctx);
+                        }
+                        lines[ctx.line].push('i');
+                    } else {
+                        lines[ctx.line].push('(');
 
-                        lines[ctx.line].push_str(&" ".repeat(indent));
-                        lines[ctx.line].push_str(&sn);
-
-                        ctx.line -= 1;
-
-                        if ctx.line == 0 || ctx.depth != ctx.depths[ctx.line] {
-                            ctx.added_below += 1;
-                            lines.insert(ctx.line, String::new());
-                            ctx.depths.insert(ctx.line, ctx.depth);
+                        if r.re.denominator.is_one() {
+                            let s = r.re.numerator.to_string();
+                            lines[ctx.line].push_str(&s);
                         } else {
-                            ctx.line -= 1;
+                            fmt_rational(&r.re, lines, ctx);
                         }
 
-                        let line_len = lines[ctx.line].len();
+                        lines[ctx.line].push_str(" + ");
 
-                        let indent = if !n_bigger {
-                            prev_col - line_len
+                        if r.im.denominator.is_one() {
+                            let s = r.im.numerator.to_string();
+                            lines[ctx.line].push_str(&s);
                         } else {
-                            prev_col - line_len + (sn.len() - sd.len()) / 2
-                        };
+                            fmt_rational(&r.im, lines, ctx);
+                        }
 
-                        lines[ctx.line].push_str(&" ".repeat(indent));
-                        lines[ctx.line].push_str(&sd);
-
-                        ctx.line += 1;
-                        ctx.depth -= 1;
-                        lines[ctx.line].push_str(&"-".repeat(len));
+                        lines[ctx.line].push_str("i)");
+                    }
+                },
+                Num::Float(f) => {
+                    if f.im.is_zero() {
+                        let s = f.re.to_string();
+                        lines[ctx.line].push_str(&s);
+                    } else if f.re.is_zero() {
+                        let s = f.im.to_string();
+                        lines[ctx.line].push_str(&s);
+                        lines[ctx.line].push('i');
                     } else {
-                        lines[ctx.line].push_str(&(sn + "/" + &sd));
+                        let s1 = f.re.to_string();
+                        let s2 = f.im.to_string();
+                        lines[ctx.line].push('(');
+                        lines[ctx.line].push_str(&s1);
+                        lines[ctx.line].push_str(" + ");
+                        lines[ctx.line].push_str(&s2);
+                        lines[ctx.line].push_str("i)");
                     }
                 },
             },
@@ -248,7 +232,7 @@ impl Expr {
                                         if n.is_negative_one() {
                                             Some(*p.base.clone())
                                         } else {
-                                            Some(Expr::Pow(Pow::new(*p.base.clone(), Expr::Num(n.abs()))))
+                                            Some(Expr::Pow(Pow::new(*p.base.clone(), Expr::Num(n.abs_real()))))
                                         }
                                     } else {
                                         None
@@ -258,7 +242,7 @@ impl Expr {
                                         if n.is_negative() {
                                             let mut factors: Vec<_> =
                                                 m.factors.iter().take(m.factors.len() - 1).cloned().collect();
-                                            factors.push(Expr::Num(n.abs()));
+                                            factors.push(Expr::Num(n.abs_real()));
                                             Some(Expr::Pow(Pow::new(*p.base.clone(), Expr::Mul(Mul::new(factors)))))
                                         } else {
                                             None
@@ -351,7 +335,7 @@ impl Expr {
                                 lines[ctx.line].push_str(" - ");
 
                                 if !n.is_negative_one() {
-                                    Expr::Num(n.abs()).fmt_lines(lines, ctx);
+                                    Expr::Num(n.abs_real()).fmt_lines(lines, ctx);
                                 }
 
                                 m.factors[0].fmt_lines(lines, ctx);
@@ -369,7 +353,7 @@ impl Expr {
                         && n.is_negative()
                     {
                         lines[ctx.line].push_str(" - ");
-                        Expr::Num(n.abs()).fmt_lines(lines, ctx);
+                        Expr::Num(n.abs_real()).fmt_lines(lines, ctx);
                         continue;
                     }
 
@@ -402,12 +386,68 @@ impl fmt::Display for Expr {
     }
 }
 
-impl fmt::Display for Num {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Num::Integer(int) => write!(f, "{}", int),
-            Num::Float(float) => write!(f, "{}", float),
-            Num::Rational(num, denom) => write!(f, "{}/{}", num, denom),
+fn fmt_rational(r: &Rational, lines: &mut Vec<String>, ctx: &mut PrintContext) {
+    let sn = r.numerator.to_string();
+    let sd = r.denominator.to_string();
+
+    if !ctx.in_exp {
+        let len = sn.len().max(sd.len());
+        let n_bigger = sn.len() == len;
+
+        let prev_col = lines[ctx.line].len();
+        ctx.line += 1;
+        ctx.depth += 1;
+
+        let line_len = if let Some(line) = lines.get(ctx.line) {
+            if ctx.depth == ctx.depths[ctx.line] {
+                line.len()
+            } else {
+                ctx.added_above += 1;
+                lines.insert(ctx.line, String::new());
+                ctx.depths.insert(ctx.line, ctx.depth);
+                0
+            }
+        } else {
+            ctx.added_above += 1;
+            lines.insert(ctx.line, String::new());
+            ctx.depths.insert(ctx.line, ctx.depth);
+            0
+        };
+
+        let indent = if n_bigger {
+            prev_col - line_len
+        } else {
+            prev_col - line_len + (sd.len() - sn.len()) / 2
+        };
+
+        lines[ctx.line].push_str(&" ".repeat(indent));
+        lines[ctx.line].push_str(&sn);
+
+        ctx.line -= 1;
+
+        if ctx.line == 0 || ctx.depth != ctx.depths[ctx.line] {
+            ctx.added_below += 1;
+            lines.insert(ctx.line, String::new());
+            ctx.depths.insert(ctx.line, ctx.depth);
+        } else {
+            ctx.line -= 1;
         }
+
+        let line_len = lines[ctx.line].len();
+
+        let indent = if !n_bigger {
+            prev_col - line_len
+        } else {
+            prev_col - line_len + (sn.len() - sd.len()) / 2
+        };
+
+        lines[ctx.line].push_str(&" ".repeat(indent));
+        lines[ctx.line].push_str(&sd);
+
+        ctx.line += 1;
+        ctx.depth -= 1;
+        lines[ctx.line].push_str(&"-".repeat(len));
+    } else {
+        lines[ctx.line].push_str(&(sn + "/" + &sd));
     }
 }

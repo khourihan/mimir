@@ -263,32 +263,12 @@ impl<T: NumericalFloatLike> Neg for Complex<T> {
     }
 }
 
-impl<T: NumericalFloatLike> Display for Complex<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char('(')?;
-        Display::fmt(&self.re, f);
-        f.write_char('+')?;
-        Display::fmt(&self.im, f);
-        f.write_str("i)")
-    }
-}
-
-impl<T: NumericalFloatLike> Debug for Complex<T> {
+impl<T: Debug> Debug for Complex<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('(')?;
         Debug::fmt(&self.re, f)?;
         f.write_char('+')?;
         Debug::fmt(&self.im, f)?;
-        f.write_str("i)")
-    }
-}
-
-impl<T: NumericalFloatLike> LowerExp for Complex<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char('(')?;
-        LowerExp::fmt(&self.re, f)?;
-        f.write_char('+')?;
-        LowerExp::fmt(&self.im, f)?;
         f.write_str("i)")
     }
 }
@@ -302,6 +282,11 @@ impl<T: SingleFloat> SingleFloat for Complex<T> {
     #[inline(always)]
     fn is_one(&self) -> bool {
         self.re.is_one() && self.im.is_zero()
+    }
+
+    #[inline(always)]
+    fn is_negative_one(&self) -> bool {
+        self.re.is_negative_one() && self.im.is_zero()
     }
 
     #[inline(always)]
@@ -525,5 +510,22 @@ impl<'a, T: NumericalFloatLike + From<&'a Rational>> From<&'a Rational> for Comp
     fn from(value: &'a Rational) -> Self {
         let c: T = value.into();
         Complex::new(c, T::zero())
+    }
+}
+
+impl Complex<Rational> {
+    pub fn gcd(&self, other: &Self) -> Self {
+        if self.is_zero() {
+            return other.clone();
+        }
+
+        if other.is_zero() {
+            return self.clone();
+        }
+
+        let gcd_re = self.re.gcd(&other.re);
+        let gcd_im = self.im.gcd(&other.im);
+
+        Complex::new(gcd_re, gcd_im)
     }
 }

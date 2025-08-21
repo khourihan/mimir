@@ -4,7 +4,10 @@ use std::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{EuclideanDomain, Field, Integer, IntegerRing, InternalOrdering, Ring, UpgradeToField, Z};
+use crate::{
+    EuclideanDomain, F64, Field, Integer, IntegerRing, InternalOrdering, NumericalFloatLike, Ring, RoundableFloat,
+    SingleFloat, UpgradeToField, Z,
+};
 
 /// The field of rational numbers.
 pub type Q = FractionField<IntegerRing>;
@@ -48,8 +51,8 @@ impl<T: Field> FractionNormalization for T {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Fraction<R: Ring> {
-    numerator: R::Element,
-    denominator: R::Element,
+    pub numerator: R::Element,
+    pub denominator: R::Element,
 }
 
 impl<R: Ring> InternalOrdering for Fraction<R> {
@@ -436,6 +439,10 @@ impl Rational {
         self.numerator.is_one() && self.denominator.is_one()
     }
 
+    pub fn is_negative_one(&self) -> bool {
+        self.numerator.is_negative_one() && self.denominator.is_one()
+    }
+
     pub fn pow(&self, e: u64) -> Rational {
         Q.pow(self, e)
     }
@@ -629,5 +636,118 @@ impl_rat_op_assign!(DivAssign, div_assign);
 impl<'a> std::iter::Sum<&'a Self> for Rational {
     fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
         iter.fold(Rational::zero(), |a, b| a + b)
+    }
+}
+
+impl NumericalFloatLike for Rational {
+    #[inline]
+    fn mul_add(&self, a: &Self, b: &Self) -> Self {
+        self * a + b
+    }
+
+    #[inline]
+    fn neg(&self) -> Self {
+        self.neg()
+    }
+
+    #[inline]
+    fn zero() -> Self {
+        Self::zero()
+    }
+
+    #[inline]
+    fn one() -> Self {
+        Self::one()
+    }
+
+    #[inline]
+    fn pow(&self, e: u64) -> Self {
+        self.pow(e)
+    }
+
+    #[inline]
+    fn inv(&self) -> Self {
+        self.inv()
+    }
+
+    #[inline]
+    fn from_usize(a: usize) -> Self {
+        a.into()
+    }
+
+    #[inline]
+    fn from_i64(a: i64) -> Self {
+        a.into()
+    }
+
+    #[inline]
+    fn epsilon() -> f64 {
+        0.0
+    }
+}
+
+impl SingleFloat for Rational {
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self.is_zero()
+    }
+
+    #[inline]
+    fn is_one(&self) -> bool {
+        self.is_one()
+    }
+
+    #[inline]
+    fn is_negative_one(&self) -> bool {
+        self.is_negative_one()
+    }
+
+    #[inline]
+    fn is_finite(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn from_rational(rat: &Rational) -> Self {
+        rat.clone()
+    }
+}
+
+impl RoundableFloat for Rational {
+    fn to_usize_clamped(&self) -> usize {
+        f64::from(self) as usize
+    }
+
+    fn to_f64(&self) -> f64 {
+        f64::from(self)
+    }
+
+    #[inline]
+    fn round_to_nearest_integer(&self) -> Integer {
+        self.round_to_nearest_integer()
+    }
+}
+
+impl From<&Rational> for f64 {
+    fn from(value: &Rational) -> Self {
+        value.to_f64()
+    }
+}
+
+impl From<Rational> for f64 {
+    fn from(value: Rational) -> Self {
+        value.to_f64()
+    }
+}
+
+impl From<&Rational> for F64 {
+    fn from(value: &Rational) -> Self {
+        F64(value.to_f64())
+    }
+}
+
+impl From<Rational> for F64 {
+    fn from(value: Rational) -> Self {
+        F64(value.to_f64())
     }
 }

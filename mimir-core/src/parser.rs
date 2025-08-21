@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::expr::Expr;
+use crate::{Add, Complex, Context, Fun, Mul, Num, Pow, Var, expr::Expr};
 
 use termion::{color, style};
 
@@ -28,6 +28,9 @@ pub enum ParseError {
         start: usize,
         token: String,
         end: usize,
+    },
+    ReservedIdentifier {
+        ident: String,
     },
     User {
         error: String,
@@ -125,6 +128,9 @@ impl ParseError {
                 print!("extra token {}", token);
                 self.fmt_details("", *start, *end, src, line);
             },
+            ParseError::ReservedIdentifier { ident } => {
+                print!("reserved identifier '{}'", ident);
+            },
             ParseError::User { error } => {
                 print!("{}", error);
             },
@@ -210,6 +216,59 @@ impl FromStr for Expr {
             ));
         }
 
-        Ok(*expr)
+        process_parsed_expr(*expr)
+    }
+}
+
+fn process_parsed_expr(e: Expr) -> Result<Expr, ParseError> {
+    match e {
+        Expr::Num(num) => Ok(Expr::Num(num)),
+        Expr::Var(var) => {
+            let name = Context::get_name(var.id);
+
+            if name.as_str() == "i" {
+                return Ok(Expr::Num(Num::Rational(Complex::i())));
+            }
+
+            Ok(Expr::Var(var))
+        },
+        Expr::Fun(fun) => {
+            let name = Context::get_name(fun.id);
+
+            if name.as_str() == "i" {
+                Context::reset();
+                return Err(ParseError::ReservedIdentifier { ident: name });
+            }
+
+            let args: Vec<_> = fun
+                .args
+                .into_iter()
+                .map(process_parsed_expr)
+                .collect::<Result<_, _>>()?;
+
+            Ok(Expr::Fun(Fun::new(fun.id, args)))
+        },
+        Expr::Pow(pow) => Ok(Expr::Pow(Pow::new(
+            process_parsed_expr(*pow.base)?,
+            process_parsed_expr(*pow.exp)?,
+        ))),
+        Expr::Mul(mul) => {
+            let factors: Vec<_> = mul
+                .factors
+                .into_iter()
+                .map(process_parsed_expr)
+                .collect::<Result<_, _>>()?;
+
+            Ok(Expr::Mul(Mul::new(factors)))
+        },
+        Expr::Add(add) => {
+            let terms: Vec<_> = add
+                .terms
+                .into_iter()
+                .map(process_parsed_expr)
+                .collect::<Result<_, _>>()?;
+
+            Ok(Expr::Add(Add::new(terms)))
+        },
     }
 }

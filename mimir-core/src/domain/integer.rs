@@ -291,6 +291,14 @@ impl Integer {
     }
 
     #[inline]
+    pub fn is_negative_one(&self) -> bool {
+        match self {
+            Integer::Natural(n) => *n == -1,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_negative(&self) -> bool {
         match self {
             Integer::Natural(n) => *n < 0,

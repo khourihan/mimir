@@ -1,57 +1,15 @@
-use std::cmp::Ordering;
-use std::ops;
+use std::{
+    cmp::Ordering,
+    ops::{Add, Mul, Neg},
+    str::FromStr,
+};
 
-use ordered_float::OrderedFloat;
+use crate::{Complex, F64, Integer, NumericalFloatLike, Rational, Real, SingleFloat};
 
-use crate::Integer;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Num {
-    Integer(Integer),
-    Float(OrderedFloat<f32>),
-    Rational(Integer, Integer),
-}
-
-impl ops::Add for &Num {
-    type Output = Num;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Num::Integer(i1), Num::Integer(i2)) => Num::Integer(i1 + i2),
-            (Num::Float(f1), Num::Float(f2)) => Num::Float(f1 + f2),
-            (Num::Rational(r1n, r1d), Num::Rational(r2n, r2d)) => Num::Rational(r1n * r2d + r2n * r1d, r1d * r2d),
-            (Num::Integer(int), Num::Float(float)) | (Num::Float(float), Num::Integer(int)) => {
-                Num::Float(float + OrderedFloat(int.to_f64() as f32))
-            },
-            (Num::Integer(int), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Integer(int)) => {
-                Num::Rational(int * rd + rn, rd.clone())
-            },
-            (Num::Float(float), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Float(float)) => {
-                Num::Float(float + OrderedFloat(rn.to_f64() as f32 / rd.to_f64() as f32))
-            },
-        }
-    }
-}
-
-impl ops::Mul for &Num {
-    type Output = Num;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Num::Integer(i1), Num::Integer(i2)) => Num::Integer(i1 * i2),
-            (Num::Float(f1), Num::Float(f2)) => Num::Float(f1 * f2),
-            (Num::Rational(r1n, r1d), Num::Rational(r2n, r2d)) => Num::Rational(r1n * r2n, r1d * r2d),
-            (Num::Integer(int), Num::Float(float)) | (Num::Float(float), Num::Integer(int)) => {
-                Num::Float(float * OrderedFloat(int.to_f64() as f32))
-            },
-            (Num::Integer(int), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Integer(int)) => {
-                Num::Rational(rn * int, rd.clone())
-            },
-            (Num::Float(float), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Float(float)) => {
-                Num::Float(float * OrderedFloat(rn.to_f64() as f32 / rd.to_f64() as f32))
-            },
-        }
-    }
+    Rational(Complex<Rational>),
+    Float(Complex<F64>),
 }
 
 impl PartialOrd for Num {
@@ -63,115 +21,253 @@ impl PartialOrd for Num {
 impl Ord for Num {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (Num::Integer(i1), Num::Integer(i2)) => i1.cmp(i2),
-            (Num::Float(f1), Num::Float(f2)) => f1.cmp(f2),
-            (Num::Rational(r1n, r1d), Num::Rational(r2n, r2d)) => (r1n * r2d).cmp(&(r2n * r1d)),
-            (Num::Integer(int), Num::Float(float)) | (Num::Float(float), Num::Integer(int)) => {
-                OrderedFloat(int.to_f64() as f32).cmp(float)
-            },
-            (Num::Integer(int), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Integer(int)) => {
-                (int * rd).cmp(rn)
-            },
-            (Num::Float(float), Num::Rational(rn, rd)) | (Num::Rational(rn, rd), Num::Float(float)) => {
-                (float * OrderedFloat(rd.to_f64() as f32)).cmp(&OrderedFloat(rn.to_f64() as f32))
-            },
+            (Num::Rational(r1), Num::Rational(r2)) => r1
+                .re
+                .partial_cmp(&r2.re)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| r1.im.partial_cmp(&r2.im).unwrap_or(Ordering::Equal)),
+            (Num::Rational(_), Num::Float(_)) => Ordering::Less,
+            (Num::Float(_), Num::Rational(_)) => Ordering::Greater,
+            (Num::Float(f1), Num::Float(f2)) => f1
+                .re
+                .partial_cmp(&f2.re)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| f1.im.partial_cmp(&f2.im).unwrap_or(Ordering::Equal)),
         }
     }
 }
 
 impl Num {
-    pub const ZERO: Num = Num::Integer(Integer::zero());
-    pub const ONE: Num = Num::Integer(Integer::one());
+    pub fn zero() -> Num {
+        Num::Rational(Complex::zero())
+    }
 
-    pub fn is_one(&self) -> bool {
+    pub fn one() -> Num {
+        Num::Rational(Complex::one())
+    }
+
+    pub fn negative_one() -> Num {
+        Num::Rational(Complex::new(Rational::from(-1), Rational::zero()))
+    }
+
+    pub fn is_negative(&self) -> bool {
         match self {
-            Num::Integer(int) => *int == 1,
-            Num::Float(float) => (float - 1.0).abs() <= 2e-4,
-            Num::Rational(n, d) => *n == *d,
+            Num::Rational(r) => r.re.is_negative() && r.im.is_zero() || r.im.is_negative() && r.re.is_zero(),
+            Num::Float(f) => f.re.is_negative() && f.im.is_zero() || f.im.is_negative() && f.re.is_zero(),
         }
     }
 
     pub fn is_zero(&self) -> bool {
         match self {
-            Num::Integer(int) => *int == 0,
-            Num::Float(float) => float.abs() <= 2e-4,
-            Num::Rational(n, d) => *n == 0 && *d != 0,
+            Num::Rational(r) => r.is_zero(),
+            Num::Float(f) => f.is_zero(),
+        }
+    }
+
+    pub fn is_one(&self) -> bool {
+        match self {
+            Num::Rational(r) => r.is_one(),
+            Num::Float(f) => f.is_one(),
         }
     }
 
     pub fn is_negative_one(&self) -> bool {
         match self {
-            Num::Integer(int) => *int == -1,
-            Num::Float(float) => (float + 1.0).abs() <= 2e-4,
-            Num::Rational(n, d) => n.abs() == d.abs() && n.is_negative() ^ d.is_negative(),
+            Num::Rational(r) => r.is_negative_one(),
+            Num::Float(f) => f.is_negative_one(),
         }
     }
 
-    pub fn is_negative(&self) -> bool {
+    pub fn abs_real(&self) -> Self {
         match self {
-            Num::Integer(int) => int.is_negative(),
-            Num::Float(float) => float.is_sign_negative(),
-            Num::Rational(n, d) => n.is_negative() ^ d.is_negative(),
+            Num::Rational(r) => Num::Rational(Complex::new(r.re.abs(), r.im.clone())),
+            Num::Float(f) => Num::Float(Complex::new(f.re.abs(), f.im)),
         }
     }
 
-    pub fn abs(&self) -> Num {
+    pub fn is_integer(&self) -> bool {
         match self {
-            Num::Integer(int) => Num::Integer(int.abs()),
-            Num::Float(float) => Num::Float(OrderedFloat(float.abs())),
-            Num::Rational(n, d) => Num::Rational(n.abs(), d.abs()),
+            Num::Rational(r) => r.im.is_zero() && r.re.denominator.is_one(),
+            Num::Float(_) => false,
         }
     }
 
-    /// Raises one number to the power of another, returning the resulting coefficient, base, and
-    /// exponent.
-    pub fn pow(&self, other: &Num) -> (Num, Num, Num) {
+    pub fn is_real(&self) -> bool {
+        match self {
+            Num::Rational(r) => r.im.is_zero(),
+            Num::Float(f) => f.im.is_zero(),
+        }
+    }
+
+    pub fn gcd(&self, other: &Self) -> Self {
         match (self, other) {
-            (Num::Integer(i1), Num::Integer(i2)) => {
-                if i2.is_negative() {
+            (Num::Rational(r1), Num::Rational(r2)) => Num::Rational(r1.gcd(r2)),
+            _ => Num::Float(Complex::one()),
+        }
+    }
+
+    pub fn pow(&self, other: &Self) -> (Self, Self, Self) {
+        if let Num::Rational(r) = other
+            && !r.im.is_zero()
+        {
+            return (Self::one(), self.clone(), other.clone());
+        }
+
+        fn rat_pow(mut base: Rational, mut exp: Rational) -> (Complex<Rational>, Rational, Rational) {
+            if base.is_negative() && !exp.is_integer() {
+                let pow = &exp.numerator / &exp.denominator;
+                let rest = &exp.numerator - &pow * &exp.denominator;
+
+                let base_integer_pow = if pow.is_negative() {
+                    base.inv().pow(pow.to_i64().unwrap().unsigned_abs())
+                } else {
+                    base.pow(pow.to_i64().unwrap().unsigned_abs())
+                };
+
+                if exp.denominator == 2 {
                     (
-                        Num::ONE,
-                        Num::Rational(Integer::one(), i1.pow(i2.abs().to_u32().unwrap())),
-                        Num::ONE,
+                        if rest.is_negative() {
+                            Complex::new(Rational::zero(), -base_integer_pow)
+                        } else {
+                            Complex::new(Rational::zero(), base_integer_pow)
+                        },
+                        base.abs(),
+                        Rational::from_unchecked(rest, exp.denominator),
                     )
                 } else {
-                    (Num::ONE, Num::Integer(i1.pow(i2.to_u32().unwrap())), Num::ONE)
+                    (
+                        base_integer_pow.into(),
+                        base,
+                        Rational::from_unchecked(rest, exp.denominator),
+                    )
                 }
-            },
-            (Num::Float(f1), Num::Float(f2)) => (Num::ONE, Num::Float(OrderedFloat(f1.powf(**f2))), Num::ONE),
-            (Num::Integer(int), Num::Float(float)) => (
-                Num::ONE,
-                Num::Float(OrderedFloat(OrderedFloat(int.to_f64() as f32).powf(**float))),
-                Num::ONE,
-            ),
-            (Num::Float(float), Num::Integer(int)) => (
-                Num::ONE,
-                Num::Float(OrderedFloat(
-                    float.powi(int.to_i64().and_then(|x| x.try_into().ok()).unwrap()),
-                )),
-                Num::ONE,
-            ),
-            (Num::Float(float), Num::Rational(n, d)) => (
-                Num::ONE,
-                Num::Float(OrderedFloat(float.powf(n.to_f64() as f32 / d.to_f64() as f32))),
-                Num::ONE,
-            ),
-            (Num::Rational(n, d), Num::Float(float)) => (
-                Num::ONE,
-                Num::Float(OrderedFloat((n.to_f64() as f32 / d.to_f64() as f32).powf(**float))),
-                Num::ONE,
-            ),
-            (Num::Integer(int), Num::Rational(n, d)) => todo!(),
-            (Num::Rational(n, d), Num::Integer(int)) => {
-                if int.is_negative() {
-                    let e = int.abs().to_u32().unwrap();
-                    (Num::ONE, Num::Rational(d.pow(e), n.pow(e)), Num::ONE)
+            } else {
+                if exp < 0.into() {
+                    base = base.inv();
+                    exp = -exp;
+                }
+
+                base = base.pow(exp.numerator.to_i64().unwrap().unsigned_abs());
+
+                (
+                    Rational::one().into(),
+                    base,
+                    Rational::from_unchecked(Integer::one(), exp.denominator),
+                )
+            }
+        }
+
+        match (self, other) {
+            (Num::Rational(r1), Num::Rational(r2)) => {
+                if r1.im.numerator == 0 {
+                    let (coeff, base, exp) = rat_pow(r1.re.clone(), r2.re.clone());
+                    (
+                        Num::Rational(coeff),
+                        Num::Rational(base.into()),
+                        Num::Rational(exp.into()),
+                    )
+                } else if r2.re.denominator == 1 {
+                    let r = r1.pow(r2.re.numerator.to_i64().unwrap().unsigned_abs());
+
+                    (
+                        Num::one(),
+                        if r2.re.numerator < Integer::zero() {
+                            Num::Rational(r.inv())
+                        } else {
+                            Num::Rational(r)
+                        },
+                        Num::Rational(Rational::one().into()),
+                    )
                 } else {
-                    let e = int.to_u32().unwrap();
-                    (Num::ONE, Num::Rational(n.pow(e), d.pow(e)), Num::ONE)
+                    (Num::one(), Num::Rational(r1.clone()), Num::Rational(r2.clone()))
                 }
             },
-            (Num::Rational(n1, d1), Num::Rational(n2, d2)) => todo!(),
+            (Num::Float(f), Num::Rational(r)) => {
+                if r.re.denominator == 1 && r.im.numerator == 0 {
+                    let r1 = f.pow(r.re.numerator.to_i64().unwrap().unsigned_abs());
+                    (
+                        Num::one(),
+                        if r.re.numerator < Integer::zero() {
+                            Num::Float(r1.inv())
+                        } else {
+                            Num::Float(r1)
+                        },
+                        Num::one(),
+                    )
+                } else {
+                    (
+                        Num::one(),
+                        Num::Float(f.powf(&Complex::new(r.re.clone().into(), r.im.clone().into()))),
+                        Num::one(),
+                    )
+                }
+            },
+            (Num::Rational(r), Num::Float(f)) => (
+                Num::one(),
+                Num::Float(Complex::new(r.re.clone().into(), r.im.clone().into()).powf(f)),
+                Num::one(),
+            ),
+            (Num::Float(f1), Num::Float(f2)) => {
+                let p = if f1.im.is_zero() && f2.im.is_zero() {
+                    f1.re.powf(&f2.re).into()
+                } else {
+                    f1.powf(f2)
+                };
+
+                (Num::one(), Num::Float(p), Num::one())
+            },
+        }
+    }
+
+    pub fn parse_float(s: &str) -> Result<Self, <F64 as FromStr>::Err> {
+        Ok(Num::Float(Complex::new(F64::from_str(s)?, F64::zero())))
+    }
+
+    pub fn parse_int(s: &str) -> Result<Self, <Integer as FromStr>::Err> {
+        Ok(Num::Rational(Complex::new(
+            Rational::new(Integer::from_str(s)?, Integer::one()),
+            Rational::zero(),
+        )))
+    }
+}
+
+impl Neg for Num {
+    type Output = Num;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            Num::Rational(r) => Num::Rational(-r),
+            Num::Float(f) => Num::Float(-f),
+        }
+    }
+}
+
+impl<'a> Add<&'a Num> for &Num {
+    type Output = Num;
+
+    fn add(self, rhs: &'a Num) -> Self::Output {
+        match (self, rhs) {
+            (Num::Rational(r1), Num::Rational(r2)) => Num::Rational(r1 + r2),
+            (Num::Rational(r), Num::Float(f)) | (Num::Float(f), Num::Rational(r)) => Num::Float(Complex::new(
+                f.re + F64::from(r.re.clone()),
+                f.im + F64::from(r.im.clone()),
+            )),
+            (Num::Float(f1), Num::Float(f2)) => Num::Float(f1 + f2),
+        }
+    }
+}
+
+impl<'a> Mul<&'a Num> for &Num {
+    type Output = Num;
+
+    fn mul(self, rhs: &'a Num) -> Self::Output {
+        match (self, rhs) {
+            (Num::Rational(r1), Num::Rational(r2)) => Num::Rational(r1 * r2),
+            (Num::Rational(r), Num::Float(f)) | (Num::Float(f), Num::Rational(r)) => Num::Float(Complex::new(
+                f.re * F64::from(&r.re) - f.im * F64::from(&r.im),
+                f.re * F64::from(&r.im) + f.im * F64::from(&r.re),
+            )),
+            (Num::Float(f1), Num::Float(f2)) => Num::Float(f1 * f2),
         }
     }
 }
